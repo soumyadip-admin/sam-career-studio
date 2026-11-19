@@ -23,7 +23,7 @@ from init_db import DB_PATH, init_db
 from scanner import SCAN_LOCK, run_full_scan
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_ID = "2026.11.19-pwa.2"
+BUILD_ID = "2026.11.19-pwa.3"
 APP_ACCESS_KEY = os.getenv("APP_ACCESS_KEY", "").strip()
 VALID_STATUSES = ["Interested", "Applied", "Assessment", "Interview", "HR Round", "Selected"]
 LOCATION_GROUPS = {"preferred", "kolkata", "bengaluru", "hyderabad", "remote", "other-india"}
@@ -210,7 +210,8 @@ class ATSRequest(BaseModel):
 
 
 class JarvisRequest(BaseModel):
-    query: str = Field(min_length=2, max_length=500)
+    query: str = Field(min_length=2, max_length=15000)
+    context_job_ids: list[int] = Field(default_factory=list, max_length=20)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -236,6 +237,12 @@ def service_worker():
 def health():
     return {"status": "ok", "build": BUILD_ID, "database": DB_PATH.exists(),
             "scanner_running": SCAN_LOCK.locked(), "access_key_required": bool(APP_ACCESS_KEY), "utc": now()}
+
+
+@app.get("/api/auth/verify")
+def verify_access_key():
+    """Lightweight protected endpoint used by the one-time device access dialog."""
+    return {"ok": True, "build": BUILD_ID}
 
 
 @app.get("/api/profile")
@@ -420,10 +427,27 @@ def recommendations(location_group: str = "preferred", role: str = "", limit: in
             "note": "A live domain-transition shortlist derived from current source records. Tracker-only rows are visibly labeled and never presented as freshly posted."}
 
 
-@app.post("/api/jarvis")
-async def jarvis(payload: JarvisRequest):
-    """No-cost voice/text command assistant backed by the live local job database."""
-    query = re.sub(r"\s+", " ", payload.query.strip().lower())
+JARVIS_SKILLS = [
+    ("SQL", ("sql", "cte", "window function"), True),
+    ("Power BI / DAX", ("power bi", "powerbi", "dax"), True),
+    ("Power Query", ("power query", "m language"), True),
+    ("Advanced Excel", ("advanced excel", "pivot", "xlookup", "vba", "macro"), True),
+    ("Python / Pandas", ("python", "pandas"), True),
+    ("ETL", ("etl", "data pipeline", "data transformation"), True),
+    ("Data modeling", ("data model", "star schema", "dimensional model"), True),
+    ("Statistics", ("statistics", "hypothesis", "a/b test", "regression"), True),
+    ("Tableau", ("tableau",), False),
+    ("Looker", ("looker", "lookml"), False),
+    ("Cloud", ("aws", "azure", "gcp", "cloud platform"), False),
+    ("Snowflake", ("snowflake",), False),
+    ("Databricks / Spark", ("databricks", "pyspark", "apache spark"), False),
+    ("dbt", (" dbt ", "data build tool"), False),
+    ("Airflow", ("airflow", "orchestration"), False),
+    ("Git", ("github", "version control", " git "), False),
+]
+
+
+def jarvis_location_and_role(query: str) -> tuple[str, str]:
     location_group = "preferred"
     for tokens, group in [
         (("kolkata", "calcutta"), "kolkata"), (("bangalore", "bengaluru"), "bengaluru"),
@@ -431,20 +455,68 @@ async def jarvis(payload: JarvisRequest):
         (("other india", "india wide", "anywhere in india"), "other-india"),
     ]:
         if any(token in query for token in tokens):
-            location_group = group; break
-
+            location_group = group
+            break
     role = ""
-    role_map = [
+    for terms, value in [
         (("power bi", "dax"), "Power BI"), (("business intelligence", "bi analyst"), "Business Intelligence"),
         (("business analyst",), "Business Analyst"), (("mis", "reporting"), "Reporting Analyst"),
         (("operations analyst",), "Operations Analyst"), (("workforce", "wfm"), "Workforce Analytics"),
         (("customer insight",), "Customer Insights"), (("revenue",), "Revenue Analyst"),
         (("data operations",), "Data Operations"), (("supply chain",), "Supply Chain"),
         (("data analyst", "analytics job"), "Data Analyst"),
-    ]
-    for terms, value in role_map:
+    ]:
         if any(term in query for term in terms):
-            role = value; break
+            role = value
+            break
+    return location_group, role
+
+
+def jarvis_requested_count(query: str, default: int = 5) -> int:
+    words = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
+    for word, value in words.items():
+        if re.search(rf"\b{word}\b", query):
+            return value
+    match = re.search(r"\b([1-5])\b", query)
+    return int(match.group(1)) if match else default
+
+
+def jarvis_context_jobs(job_ids: list[int]) -> list[dict]:
+    clean_ids = list(dict.fromkeys(int(job_id) for job_id in job_ids if int(job_id) > 0))[:20]
+    if not clean_ids:
+        return []
+    marks = ",".join("?" for _ in clean_ids)
+    found = rows(f"SELECT *,({LOCATION_SQL}) AS location_group FROM live_scraped_jobs WHERE id IN ({marks})", clean_ids)
+    by_id = {item["id"]: item for item in found}
+    result = [by_id[job_id] for job_id in clean_ids if job_id in by_id]
+    for item in result:
+        item["transition_reason"] = transition_reason(item)
+    return result
+
+
+def jarvis_skill_summary(text: str) -> tuple[list[str], list[str]]:
+    hay = f" {text.lower()} "
+    present, gaps = [], []
+    for label, terms, candidate_has_evidence in JARVIS_SKILLS:
+        if any(term in hay for term in terms):
+            present.append(label)
+            if not candidate_has_evidence:
+                gaps.append(label)
+    return present, gaps
+
+
+@app.post("/api/jarvis")
+async def jarvis(payload: JarvisRequest):
+    """Grounded, no-cost career task agent with explicit, user-confirmed write actions."""
+    raw_query = payload.query.strip()
+    query = re.sub(r"\s+", " ", raw_query.lower())
+    location_group, role = jarvis_location_and_role(query)
+    context_items = jarvis_context_jobs(payload.context_job_ids)
+    empty = {"jobs": [], "location_group": location_group, "role": role}
+
+    if any(term in query for term in ("what can you do", "help me", "jarvis help", "your capabilities")):
+        return {**empty, "action": "none", "message":
+                "I can find and compare current jobs, explain profile fit, create a seven-day interview plan, identify skill gaps from pasted JDs, open the ATS matcher, track jobs after confirmation, open your roadmap or pipeline, and refresh sources. I never apply or send messages without you."}
 
     if any(term in query for term in ("refresh", "sync", "update jobs", "scan now")):
         if not SCAN_LOCK.locked():
@@ -452,25 +524,96 @@ async def jarvis(payload: JarvisRequest):
             message = "I started a live source refresh. The radar and shortlist will update when it completes."
         else:
             message = "A live source refresh is already running. I will use its results when it completes."
-        return {"message": message, "action": "refresh_jobs", "jobs": [], "location_group": location_group, "role": role}
+        return {**empty, "message": message, "action": "refresh_jobs"}
+
+    if any(term in query for term in ("apply for", "apply to", "submit application")):
+        return {**empty, "action": "none", "message":
+                "I will not submit an application or contact an employer automatically. I can compare the roles, open the official application link, or place selected jobs in Interested after you confirm."}
+
+    if any(term in query for term in ("track", "save", "add")) and any(term in query for term in ("job", "role", "first", "top", "these", "them", "interested")):
+        count = jarvis_requested_count(query, 2)
+        items = (context_items or recommendation_rows(location_group=location_group, role=role, limit=20))[:count]
+        return {**empty, "message":
+                f"I prepared {len(items)} job{'s' if len(items) != 1 else ''} for your Interested stage. Review the cards and use the confirmation button; I will not apply to them.",
+                "action": "confirm_track_jobs", "jobs": items, "result_count": len(items)}
+
+    if any(term in query for term in ("seven day", "7 day", "one week", "interview plan", "prepare for interview", "interview preparation")):
+        target = role or "Data Analyst"
+        message = (f"Seven-day {target} interview plan:\n"
+                   "Day 1 — map the JD, required skills and honest evidence from your profile.\n"
+                   "Day 2 — practise SQL joins, CTEs, windows and data-quality checks.\n"
+                   "Day 3 — revise Excel, Power Query, KPI definitions and reconciliation.\n"
+                   "Day 4 — practise Power BI modeling, DAX and dashboard decisions.\n"
+                   "Day 5 — complete one timed analytics case and explain assumptions.\n"
+                   "Day 6 — rehearse six STAR stories using only verified experience.\n"
+                   "Day 7 — run a mock interview, review gaps and prepare questions for the employer.")
+        return {**empty, "message": message, "action": "interview_plan"}
+
+    if any(term in query for term in ("missing skills", "skill gaps", "skills missing", "compare job descriptions", "compare jds")):
+        chunks = [chunk.strip() for chunk in re.split(r"(?:\n\s*---+\s*\n|\n\s*jd\s*\d+\s*:?\s*)", raw_query, flags=re.I) if len(chunk.strip()) >= 80]
+        if len(chunks) < 2:
+            return {**empty, "action": "show_ats", "message":
+                    "Paste two or three complete job descriptions into Jarvis and separate them with a line containing ---. I will report common requirements and profile gaps without inventing skills. The ATS matcher is also open for one-JD analysis."}
+        frequency: dict[str, int] = {}
+        gaps: dict[str, int] = {}
+        for chunk in chunks[:3]:
+            detected, missing = jarvis_skill_summary(chunk)
+            for skill in detected:
+                frequency[skill] = frequency.get(skill, 0) + 1
+            for skill in missing:
+                gaps[skill] = gaps.get(skill, 0) + 1
+        common = sorted(frequency, key=lambda skill: (-frequency[skill], skill))[:8]
+        missing = sorted(gaps, key=lambda skill: (-gaps[skill], skill))[:6]
+        common_text = ", ".join(f"{skill} ({frequency[skill]}/{len(chunks[:3])})" for skill in common) or "No supported skill terms detected"
+        gap_text = ", ".join(f"{skill} ({gaps[skill]}/{len(chunks[:3])})" for skill in missing) or "No clear unsupported-tool gaps detected"
+        return {**empty, "action": "skill_gap_summary", "message":
+                f"Compared {len(chunks[:3])} job descriptions. Common requirements: {common_text}. Profile gaps or unverified tools: {gap_text}. Verify the original JDs; absence from this list does not prove mastery."}
+
+    if any(term in query for term in ("ats variation", "tailor my resume", "tailored resume", "resume for this", "match my resume")):
+        return {**empty, "action": "show_ats", "message":
+                "Opening the ATS matcher. Paste the complete real JD. It will produce a JD-specific comparison and truth-safe bullet starters; it will not invent experience, employers, metrics or tools."}
+
+    if any(term in query for term in ("compare", "best", "top", "recommend")) and any(term in query for term in ("job", "role", "vacanc", "opportun")):
+        count = jarvis_requested_count(query, 5)
+        items = (context_items or recommendation_rows(location_group=location_group, role=role, limit=20))[:count]
+        label = {"preferred": "your preferred locations", "kolkata": "Kolkata", "bengaluru": "Bengaluru",
+                 "hyderabad": "Hyderabad", "remote": "remote", "other-india": "other Indian locations"}[location_group]
+        return {**empty, "message":
+                f"Here are the {len(items)} strongest current matches for {label}. Each card shows a grounded fit reason. Ranking favors junior/mid-level, source-dated transition roles; verify every JD and experience requirement before applying.",
+                "action": "compare_jobs", "jobs": items, "result_count": len(items)}
+
+    if any(term in query for term in ("why suitable", "why is", "explain the", "explain why", "profile fit", "fit for me")):
+        items = context_items or recommendation_rows(location_group=location_group, role=role, limit=20)
+        index = 0
+        for token, value in (("second", 1), ("third", 2), ("fourth", 3), ("fifth", 4)):
+            if token in query:
+                index = value
+                break
+        if not items or index >= len(items):
+            return {**empty, "action": "none", "message": "I do not have that job in the current conversation. Ask me to compare jobs first."}
+        job = items[index]
+        reason = transition_reason(job)
+        return {**empty, "action": "explain_job", "jobs": [job], "result_count": 1,
+                "message": f"{job['title']} at {job['company']}: {reason} Your operations background is supporting context, not proof of every technical requirement. Check the official JD for required years, tools and domain knowledge."}
+
     if "roadmap" in query or "learn" in query or "study plan" in query:
-        return {"message": "Opening your Data Analyst roadmap. Completed items are saved on this device.",
-                "action": "show_roadmap", "jobs": [], "location_group": location_group, "role": role}
+        return {**empty, "message": "Opening your Data Analyst roadmap. Completed items are saved on this device.",
+                "action": "show_roadmap"}
     if "pipeline" in query or "application" in query or "crm" in query:
-        return {"message": "Opening the application pipeline and live 20-job transition shortlist.",
-                "action": "show_pipeline", "jobs": [], "location_group": location_group, "role": role}
+        return {**empty, "message": "Opening the application pipeline and live 20-job transition shortlist.",
+                "action": "show_pipeline"}
     if "ats" in query or "resume match" in query:
-        return {"message": "Opening the ATS matcher. Paste the real job description for an evidence-based comparison.",
-                "action": "show_ats", "jobs": [], "location_group": location_group, "role": role}
+        return {**empty, "message": "Opening the ATS matcher. Paste the real job description for an evidence-based comparison.",
+                "action": "show_ats"}
 
     items = recommendation_rows(location_group=location_group, role=role, limit=20)
     label = {"preferred": "your preferred locations", "kolkata": "Kolkata", "bengaluru": "Bengaluru",
              "hyderabad": "Hyderabad", "remote": "remote", "other-india": "other Indian locations"}[location_group]
     role_text = f" {role}" if role else " domain-transition"
     message = (f"I found {len(items)} current{role_text} jobs for {label}. "
-               "I ranked source-dated roles first and excluded call-centre, voice, chat-support and BPO-process work.")
-    return {"message": message, "action": "filter_jobs", "jobs": items,
-            "result_count": len(items), "location_group": location_group, "role": role}
+               "I ranked source-dated roles first and excluded call-centre, voice, chat-support and BPO-process work. You can ask me to compare the top five or explain the first result.")
+    return {**empty, "message": message, "action": "filter_jobs", "jobs": items,
+            "result_count": len(items)}
 
 
 @app.post("/api/scraper/scan", status_code=202)

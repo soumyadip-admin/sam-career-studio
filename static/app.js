@@ -1,9 +1,10 @@
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 const STATUSES = ['Interested', 'Applied', 'Assessment', 'Interview', 'HR Round', 'Selected'];
-const state = { roles: [], portals: [], liveJobs: [], liveCount: 0, shortlist: [], jobs: [], projects: [], currentProject: null, currentTab: 'excel_guide', questions: [], qIndex: 0, visibleJobs: 20, previousVisit: localStorage.getItem('samLastJobVisit') || null };
+const state = { roles: [], portals: [], liveJobs: [], liveCount: 0, shortlist: [], jobs: [], projects: [], currentProject: null, currentTab: 'excel_guide', questions: [], qIndex: 0, visibleJobs: 20, jarvisLastJobs: [], previousVisit: localStorage.getItem('samLastJobVisit') || null };
 let deferredInstallPrompt = null;
 let jarvisRecognition = null;
+let accessGatePromise = null;
 
 const ROADMAP_PHASES = [
   {title:'Analytics foundation', duration:'Weeks 1–2', tasks:[
@@ -52,16 +53,52 @@ function safeUrl(value = '') {
   try { const u = new URL(value, location.origin); return ['http:', 'https:'].includes(u.protocol) ? u.href : '#'; }
   catch { return '#'; }
 }
+function requestAccessKey() {
+  if (accessGatePromise) return accessGatePromise;
+  const dialog = $('#accessKeyModal');
+  if (!dialog) {
+    const supplied = window.prompt('Enter your Sam Career Studio app access key. Do not use a Gmail or GitHub password.');
+    if (!supplied) return Promise.reject(new Error('App access key required'));
+    localStorage.setItem('samAppAccessKey', supplied.trim());
+    return Promise.resolve(supplied.trim());
+  }
+  accessGatePromise = new Promise((resolve, reject) => {
+    const form = $('#accessKeyForm'), input = $('#accessKeyInput'), error = $('#accessKeyError');
+    const cancel = $('#accessKeyCancel'), submit = $('#accessKeySubmit');
+    const cleanup = () => {
+      form.removeEventListener('submit', onSubmit); cancel.removeEventListener('click', onCancel); dialog.removeEventListener('cancel', onCancel);
+    };
+    const onCancel = event => {
+      event.preventDefault(); cleanup(); if (dialog.open) dialog.close(); reject(new Error('App access key required'));
+    };
+    const onSubmit = async event => {
+      event.preventDefault(); const candidate = input.value.trim();
+      if (!candidate) { error.textContent = 'Enter the private app access key saved in Render.'; return; }
+      submit.disabled = true; submit.textContent = 'Checking…'; error.textContent = '';
+      try {
+        const check = await fetch('/api/auth/verify', {headers:{'X-App-Key':candidate,'Cache-Control':'no-store'}, cache:'no-store'});
+        if (!check.ok) { error.textContent = 'That key was not accepted. Check capitalization and use the latest Render value.'; input.select(); return; }
+        localStorage.setItem('samAppAccessKey', candidate); cleanup(); dialog.close(); resolve(candidate); toast('Private app access confirmed.');
+      } catch {
+        error.textContent = 'The server could not verify the key. Check your internet connection and try again.';
+      } finally { submit.disabled = false; submit.textContent = 'Unlock app'; }
+    };
+    form.addEventListener('submit', onSubmit); cancel.addEventListener('click', onCancel); dialog.addEventListener('cancel', onCancel);
+    input.value = ''; error.textContent = ''; dialog.showModal(); setTimeout(() => input.focus(), 80);
+  }).finally(() => { accessGatePromise = null; });
+  return accessGatePromise;
+}
+
 async function api(url, options = {}, retried = false) {
   const accessKey = localStorage.getItem('samAppAccessKey') || '';
   const headers = {'Content-Type':'application/json', ...(accessKey ? {'X-App-Key': accessKey} : {}), ...(options.headers || {})};
   const response = await fetch(url, {...options, headers});
   if (response.status === 401 && !retried) {
-    const supplied = window.prompt('Enter your Sam Career Studio access key. It is stored only on this device.');
-    if (supplied) {
-      localStorage.setItem('samAppAccessKey', supplied.trim());
-      return api(url, options, true);
-    }
+    const latestKey = localStorage.getItem('samAppAccessKey') || '';
+    if (latestKey && latestKey !== accessKey) return api(url, options, true);
+    if (accessKey) localStorage.removeItem('samAppAccessKey');
+    await requestAccessKey();
+    return api(url, options, true);
   }
   if (!response.ok) {
     let detail = `Request failed (${response.status})`;
@@ -423,20 +460,38 @@ function toggleJarvis(force) {
 }
 function jarvisMessage(text, type = 'assistant', jobs = []) {
   const node = document.createElement('div'); node.className = `jarvis-message ${type}`;
-  node.innerHTML = `<span>${esc(text)}</span>${jobs.slice(0,5).map(job => `<div class="jarvis-job"><a href="${safeUrl(job.url)}" target="_blank" rel="noopener">Apply ↗</a><b>${esc(job.title)}</b><span>${esc(job.company || '')} · ${esc(job.location_group || job.location || '')}</span></div>`).join('')}`;
-  $('#jarvisMessages').append(node); $('#jarvisMessages').scrollTop = $('#jarvisMessages').scrollHeight;
+  node.innerHTML = `<span>${esc(text)}</span>${jobs.slice(0,5).map(job => `<div class="jarvis-job"><a href="${safeUrl(job.url)}" target="_blank" rel="noopener">Apply ↗</a><b>${esc(job.title)}</b><span>${esc(job.company || '')} · ${esc(job.location_group || job.location || '')}</span>${job.transition_reason ? `<small>${esc(job.transition_reason)}</small>` : ''}</div>`).join('')}`;
+  $('#jarvisMessages').append(node); $('#jarvisMessages').scrollTop = $('#jarvisMessages').scrollHeight; return node;
 }
 function speakJarvis(text) {
   if (!('speechSynthesis' in window)) return;
   speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(text); utterance.lang = 'en-IN'; utterance.rate = 1; speechSynthesis.speak(utterance);
+}
+async function trackJarvisJobs(jobs, button) {
+  if (!jobs.length) return;
+  button.disabled = true; button.textContent = 'Saving…'; let saved = 0;
+  for (const job of jobs) {
+    try {
+      await api('/api/jobs', {method:'POST', body:JSON.stringify({title:job.title,company:job.company,location:job.location || '',portal:job.source || 'Direct',url:job.url,status:'Interested',notes:'Added by Jarvis after user confirmation.',live_job_id:job.id})}); saved++;
+    } catch (error) { jarvisMessage(`Could not save ${job.title}: ${error.message}`, 'assistant'); }
+  }
+  button.remove(); await Promise.all([loadPipeline(), loadMetrics()]);
+  jarvisMessage(`${saved} job${saved === 1 ? '' : 's'} saved to Interested. No application was submitted.`, 'assistant');
 }
 async function askJarvis(command, spoken = false) {
   const query = String(command || '').trim(); if (query.length < 2) return;
   toggleJarvis(true); jarvisMessage(query, 'user'); $('#jarvisText').value = '';
   const waiting = document.createElement('div'); waiting.className = 'jarvis-message assistant'; waiting.textContent = 'Checking the live career database…'; $('#jarvisMessages').append(waiting);
   try {
-    const result = await api('/api/jarvis', {method:'POST', body:JSON.stringify({query})}); waiting.remove();
-    jarvisMessage(result.message, 'assistant', result.jobs || []); if (spoken) speakJarvis(result.message);
+    const context_job_ids = state.jarvisLastJobs.map(job => Number(job.id)).filter(Boolean).slice(0,20);
+    const result = await api('/api/jarvis', {method:'POST', body:JSON.stringify({query, context_job_ids})}); waiting.remove();
+    const resultJobs = result.jobs || []; const responseNode = jarvisMessage(result.message, 'assistant', resultJobs);
+    if (resultJobs.length && result.action !== 'explain_job') state.jarvisLastJobs = resultJobs;
+    if (result.action === 'confirm_track_jobs' && resultJobs.length) {
+      const confirm = document.createElement('button'); confirm.className = 'jarvis-confirm'; confirm.textContent = `Confirm: save ${resultJobs.length} to Interested`;
+      confirm.addEventListener('click', () => trackJarvisJobs(resultJobs, confirm)); responseNode.append(confirm);
+    }
+    if (spoken) speakJarvis(result.message);
     if (result.action === 'show_roadmap') $('#roadmap').scrollIntoView({behavior:'smooth'});
     if (result.action === 'show_pipeline') $('#pipeline').scrollIntoView({behavior:'smooth'});
     if (result.action === 'show_ats') $('#ats').scrollIntoView({behavior:'smooth'});
@@ -507,15 +562,37 @@ function bindEvents() {
   $('#jarvisFab').addEventListener('click', () => toggleJarvis()); $('#jarvisClose').addEventListener('click', () => toggleJarvis(false));
   $('#jarvisMic').addEventListener('click', startJarvisVoice); $('#jarvisForm').addEventListener('submit', event => { event.preventDefault(); askJarvis($('#jarvisText').value); });
   $$('.jarvis-suggestions button').forEach(button => button.addEventListener('click', () => askJarvis(button.dataset.command)));
-  $$('dialog').forEach(d => d.addEventListener('click', e => { if (e.target === d) d.close(); }));
+  $('#showAccessKey')?.addEventListener('change', event => { $('#accessKeyInput').type = event.target.checked ? 'text' : 'password'; });
+  $('#changeAccessKey')?.addEventListener('click', async () => {
+    localStorage.removeItem('samAppAccessKey');
+    try { await requestAccessKey(); location.reload(); } catch (error) { toast(error.message, 'error'); }
+  });
+  $$('dialog').forEach(d => d.addEventListener('click', e => { if (e.target === d && d.id !== 'accessKeyModal') d.close(); }));
   const observer = new IntersectionObserver(entries => entries.forEach(entry => { if(entry.isIntersecting) $$('#nav a').forEach(a=>a.classList.toggle('active',a.getAttribute('href')===`#${entry.target.id}`)); }), {rootMargin:'-30% 0px -60%'});
   $$('main section[id]').forEach(s=>observer.observe(s));
+}
+
+async function preparePrivateAccess() {
+  try {
+    const health = await fetch('/api/health', {cache:'no-store'}).then(response => response.json());
+    if (!health.access_key_required) return;
+    const saved = localStorage.getItem('samAppAccessKey') || '';
+    if (saved) {
+      const check = await fetch('/api/auth/verify', {headers:{'X-App-Key':saved,'Cache-Control':'no-store'}, cache:'no-store'});
+      if (check.ok) return;
+      localStorage.removeItem('samAppAccessKey');
+    }
+    await requestAccessKey();
+  } catch (error) {
+    if (navigator.onLine) throw error;
+  }
 }
 
 async function initialize() {
   bindEvents(); renderRoadmap();
   await registerPWA();
   try {
+    await preparePrivateAccess();
     await Promise.all([loadRoles(), loadMetrics(), loadPipeline(), loadProjects(), loadSkills(), loadQuestions(), loadTrends(), loadShortlist()]);
     await Promise.all([loadPortals(), loadLiveJobs()]);
     const status = await api('/api/scraper/status');

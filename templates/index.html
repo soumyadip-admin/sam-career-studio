@@ -13,7 +13,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
   <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
-  <link rel="stylesheet" href="/static/styles.css?v=2026.11.19-pwa.2">
+  <link rel="stylesheet" href="/static/styles.css?v=2026.11.19-pwa.3">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -211,7 +211,7 @@
 
   <footer>
     <div class="brand"><span class="brand-mark"><span></span></span><span><b>SAM</b><small>CAREER STUDIO</small></span></div>
-    <p>Built as a source-aware career operating system. Verify every listing before applying. <span id="buildLabel">PWA build 2026.11.19-pwa.2</span></p>
+    <p>Built as a source-aware career operating system. Verify every listing before applying. <span id="buildLabel">PWA build 2026.11.19-pwa.3</span></p>
     <div><span id="footerStatus"><i></i> SYSTEM ONLINE</span><a href="mailto:soumyadipsarkar2106@gmail.com">CONTACT</a></div>
   </footer>
 
@@ -239,19 +239,29 @@
     </form>
   </dialog>
 
+  <dialog class="modal compact-modal access-modal" id="accessKeyModal" aria-labelledby="accessKeyTitle">
+    <div class="modal-head"><span>PRIVATE DEVICE ACCESS</span><h2 id="accessKeyTitle">Unlock Sam Career Studio</h2><p>Enter the app access key stored in Render. This is not your Gmail, GitHub or phone password. A verified key is saved only on this device.</p></div>
+    <form id="accessKeyForm" autocomplete="off">
+      <label>App access key<input id="accessKeyInput" type="password" inputmode="text" autocomplete="off" autocapitalize="none" spellcheck="false" required></label>
+      <label class="show-key"><input id="showAccessKey" type="checkbox"> Show key while typing</label>
+      <p class="access-error" id="accessKeyError" role="alert"></p>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" id="accessKeyCancel">Use offline shell</button><button class="btn btn-primary" id="accessKeySubmit" type="submit">Unlock app</button></div>
+    </form>
+  </dialog>
+
   <button class="jarvis-fab" id="jarvisFab" aria-controls="jarvisPanel" aria-expanded="false"><span class="jarvis-core"></span><b>JARVIS</b></button>
   <aside class="jarvis-panel" id="jarvisPanel" aria-label="Jarvis career assistant" aria-hidden="true">
     <div class="jarvis-head"><div><span class="jarvis-core"></span><div><b>JARVIS</b><small>LIVE CAREER ASSISTANT</small></div></div><button id="jarvisClose" aria-label="Close Jarvis">×</button></div>
-    <div class="jarvis-messages" id="jarvisMessages" aria-live="polite"><div class="jarvis-message assistant">Ask me “What Data Analyst jobs are available in Kolkata?”, “Show remote Power BI jobs”, “Refresh jobs”, or “Open my roadmap”.</div></div>
-    <div class="jarvis-suggestions"><button data-command="What Data Analyst jobs are available in Kolkata?">Kolkata jobs</button><button data-command="Show remote Power BI jobs">Remote Power BI</button><button data-command="Open my roadmap">Roadmap</button><button data-command="Refresh jobs">Refresh</button></div>
-    <form class="jarvis-input" id="jarvisForm"><button type="button" id="jarvisMic" aria-label="Speak to Jarvis" title="Speak">◉</button><input id="jarvisText" autocomplete="off" placeholder="Ask Jarvis about jobs…" aria-label="Ask Jarvis"><button type="submit" aria-label="Send to Jarvis">➜</button></form>
-    <small class="jarvis-privacy">Voice recognition uses your Android browser. Jarvis searches this app's live database and never applies without your action.</small>
+    <div class="jarvis-messages" id="jarvisMessages" aria-live="polite"><div class="jarvis-message assistant">I can search and compare jobs, explain profile fit, create a seven-day interview plan, identify gaps across pasted JDs, and track selected jobs only after you confirm. Ask “What can you do?” for help.</div></div>
+    <div class="jarvis-suggestions"><button data-command="Compare the five best Kolkata jobs against my background">Compare Kolkata</button><button data-command="Create a seven day Data Analyst interview plan">7-day plan</button><button data-command="Show remote Power BI jobs">Remote Power BI</button><button data-command="What can you do?">Help</button></div>
+    <form class="jarvis-input" id="jarvisForm"><button type="button" id="jarvisMic" aria-label="Speak to Jarvis" title="Speak">◉</button><input id="jarvisText" autocomplete="off" placeholder="Ask Jarvis a career task…" aria-label="Ask Jarvis"><button type="submit" aria-label="Send to Jarvis">➜</button></form>
+    <small class="jarvis-privacy">Voice recognition uses your Android browser. Jarvis is grounded in this app's database and never applies without your action. <button type="button" id="changeAccessKey">Change device key</button></small>
   </aside>
 
   <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
-  <script src="/static/three.min.js?v=2026.11.19-pwa.2"></script>
-  <script src="/static/scene.js?v=2026.11.19-pwa.2"></script>
-  <script src="/static/app.js?v=2026.11.19-pwa.2"></script>
+  <script src="/static/three.min.js?v=2026.11.19-pwa.3"></script>
+  <script src="/static/scene.js?v=2026.11.19-pwa.3"></script>
+  <script src="/static/app.js?v=2026.11.19-pwa.3"></script>
 </body>
 </html>
