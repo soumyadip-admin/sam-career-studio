@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#08090b">
+  <meta name="description" content="Sam Career Studio — a truthful, automated data analytics career command center.">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Sam Career">
+  <title>Sam Career Studio · Career Intelligence</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+  <link rel="stylesheet" href="/static/styles.css?v=2026.11.19-pwa.2">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <canvas id="webgl-bg" aria-hidden="true"></canvas>
+  <div class="noise" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <a class="brand" href="#overview" aria-label="Sam Career Studio home">
+      <span class="brand-mark"><span></span></span>
+      <span><b>SAM</b><small>CAREER STUDIO</small></span>
+    </a>
+    <nav id="nav" aria-label="Primary navigation">
+      <a class="active" href="#overview">Overview</a>
+      <a href="#radar">Live radar</a>
+      <a href="#pipeline">Pipeline</a>
+      <a href="#projects">Projects</a>
+      <a href="#roadmap">Roadmap</a>
+      <a href="#skills">Skills</a>
+      <a href="#interview">Interview</a>
+    </nav>
+    <div class="top-actions">
+      <button class="icon-button" id="themePulse" aria-label="Toggle ambient background" title="Toggle ambient background">
+        <svg viewBox="0 0 24 24"><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>
+      </button>
+      <span class="connection-badge" id="connectionState" title="Connection status"><i></i><span>Online</span></span>
+      <button class="install-button" id="installApp" hidden><span>⇩</span><span class="install-label">Install app</span></button>
+      <button class="sync-button" id="syncTop"><span class="sync-dot"></span><span class="sync-label">Sync jobs</span></button>
+      <button class="menu-button" id="menuButton" aria-expanded="false" aria-controls="nav"><span></span><span></span><span></span></button>
+    </div>
+  </header>
+
+  <main id="main">
+    <section id="overview" class="hero section-wrap">
+      <div class="eyebrow"><span></span> CAREER INTELLIGENCE SYSTEM · <b id="systemStatus">CONNECTING</b></div>
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <p class="hero-kicker">DATA &amp; WFM ANALYTICS</p>
+          <h1>Build the career.<br><em>Read the signal.</em></h1>
+          <p class="hero-lede">A source-aware command center for <strong>Soumyadip Sarkar</strong>—live job discovery, application tracking, project execution and interview readiness in one honest operating system.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#radar"><span>Explore live jobs</span><b>↗</b></a>
+            <a class="btn btn-secondary" href="#ats">Match a resume</a>
+          </div>
+          <div class="trust-row">
+            <span><i class="ok-icon">✓</i> Public-source provenance</span>
+            <span><i class="ok-icon">✓</i> Hourly automatic refresh</span>
+            <span><i class="ok-icon">✓</i> No call-centre roles · no salary cap</span>
+          </div>
+        </div>
+
+        <div class="mission-console glass" aria-label="Career mission console">
+          <div class="console-head">
+            <div><span class="console-label">MISSION CONTROL</span><h2>Career trajectory</h2></div>
+            <span class="live-pill"><i></i> LIVE</span>
+          </div>
+          <div class="orbit-stage" aria-hidden="true">
+            <div class="radar-rings"><span></span><span></span><span></span><span></span></div>
+            <div class="core-orb"><div></div></div>
+            <i class="orb orb-1"></i><i class="orb orb-2"></i><i class="orb orb-3"></i>
+            <div class="trajectory"></div>
+            <span class="orbit-label label-a">BANGALORE <b>PRIMARY</b></span>
+            <span class="orbit-label label-b">REMOTE <b>OPEN</b></span>
+          </div>
+          <div class="console-stats">
+            <div><span>TODAY'S JOBS</span><strong id="heroLive">—</strong><small>posted in past 24h</small></div>
+            <div><span>MATCH INDEX</span><strong id="heroMatch">—</strong><small>heuristic relevance</small></div>
+            <div><span>PIPELINE</span><strong id="heroPipeline">—</strong><small>tracked leads</small></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="metric-strip glass">
+        <article><div class="metric-icon orange">⌁</div><div><span>LIVE JOB SIGNALS</span><strong id="metricJobs">—</strong><small id="metricJobsSub">Waiting for first scan</small></div></article>
+        <article><div class="metric-icon amber">◫</div><div><span>APPLICATION PIPELINE</span><strong id="metricPipeline">—</strong><small>Tracked applications only</small></div></article>
+        <article><div class="metric-icon cyan">◇</div><div><span>PROJECT LAB</span><strong id="metricProjects">16</strong><small>Production-ready blueprints</small></div></article>
+        <article><div class="metric-icon green">↗</div><div><span>SKILL READINESS</span><strong id="metricSkills">—</strong><small>Self-assessed · editable</small></div></article>
+      </div>
+
+      <details class="install-guide glass">
+        <summary><span>ANDROID INSTALL</span><b>Get Sam Career on your phone</b><i>+</i></summary>
+        <div class="install-steps">
+          <div><strong>1</strong><p>Open the deployed <b>HTTPS</b> app link in Chrome on Android.</p></div>
+          <div><strong>2</strong><p>Let the jobs load once, then tap <b>Install app</b> in the header.</p></div>
+          <div><strong>3</strong><p>If the button is hidden, use Chrome <b>⋮ → Add to Home screen → Install</b>.</p></div>
+          <div><strong>4</strong><p>Open <b>Sam Career</b> from your home screen. Cached jobs and roadmap stay available during weak connectivity.</p></div>
+        </div>
+      </details>
+    </section>
+
+    <section id="radar" class="content-section section-wrap">
+      <div class="section-heading">
+        <div><div class="section-index">01 / DISCOVER</div><h2>Live opportunity <em>radar</em></h2><p>Verified source links, visible freshness and transparent relevance scoring.</p></div>
+        <div class="heading-actions"><span class="last-sync" id="lastSync">Not synced yet</span><button class="btn btn-primary btn-small" id="syncRadar">Refresh now</button></div>
+      </div>
+
+      <div class="integrity-banner">
+        <svg viewBox="0 0 24 24"><path d="M12 3 4 6v5c0 5 3.4 8.2 8 10 4.6-1.8 8-5 8-10V6l-8-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg>
+          <div><strong>Today-first automation · Google Sheet fallback · no call-centre work</strong><span>The default radar shows source-dated jobs posted in the past 24 hours. The supplied tracker sheet is deduplicated and clearly labeled because its timestamp is not a posting date. Call-centre, voice/chat process, telecalling and BPO-process roles are excluded.</span></div>
+      </div>
+
+      <div class="portal-panel glass">
+        <div class="panel-title"><div><span>TARGET PORTALS</span><h3>10-portal search matrix</h3></div><div class="portal-controls"><select id="portalRole" aria-label="Portal role"></select><select id="portalLocation" aria-label="Portal location"><option>Bangalore</option><option>Kolkata</option><option>Hyderabad</option><option>Remote</option></select></div></div>
+        <div class="portal-grid" id="portalGrid"><div class="skeleton wide"></div></div>
+      </div>
+
+      <div class="radar-toolbar glass">
+        <label class="search-box"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg><input id="jobSearch" type="search" placeholder="Search title, company or location…"></label>
+        <select id="roleFilter" aria-label="Filter by role"><option value="">All transition roles</option></select>
+        <select id="locationFilter" aria-label="Filter by location"><option value="preferred">All preferred locations</option><option value="kolkata">Kolkata</option><option value="bengaluru">Bengaluru</option><option value="hyderabad">Hyderabad</option><option value="remote">Remote</option><option value="other-india">Other India</option></select>
+        <select id="sourceFilter" aria-label="Filter by source"><option value="">All sources</option><option>Google Sheet Tracker</option><option>LinkedIn</option><option>Naukri</option><option>Indeed India</option><option>Glassdoor India</option><option>Shine</option><option>Instahyre</option><option>Employer Direct</option><option>Remotive</option><option>Jobicy</option><option>Arbeitnow</option><option>RemoteOK</option><option>Himalayas</option></select>
+        <select id="freshnessFilter" aria-label="Freshness confidence"><option value="today">Today · past 24 hours</option><option value="verified">Past 72 hours</option><option value="all_current">Include current age-unknown</option></select>
+        <select id="jobSort" aria-label="Sort jobs"><option value="match">Best profile match</option><option value="fresh">Newest posted</option></select>
+        <label class="score-filter">Match <input id="scoreFilter" type="range" min="0" max="90" step="10" value="0"><output id="scoreOutput">0%+</output></label>
+      </div>
+      <div class="result-meta"><span id="jobCount">Loading fresh jobs…</span><span id="sourceSummary"><i class="signal-dot"></i> Public feeds · past 24h</span></div>
+      <div class="location-segments" id="locationSegments" aria-label="Job counts by location"></div>
+      <div class="job-grid" id="jobGrid"><div class="job-card skeleton-card"></div><div class="job-card skeleton-card"></div><div class="job-card skeleton-card"></div></div>
+      <div class="center-action"><button class="btn btn-secondary" id="showMoreJobs" hidden>Show 20 more jobs</button></div>
+    </section>
+
+    <section id="pipeline" class="content-section section-wrap">
+      <div class="section-heading">
+        <div><div class="section-index">02 / CONVERT</div><h2>Application <em>pipeline</em></h2><p>The live shortlist refreshes from sources; only jobs you choose to track enter the six-stage CRM.</p></div>
+        <div class="heading-actions"><a class="btn btn-secondary btn-small" href="/api/export/jobs.csv">Export CSV</a><button class="btn btn-primary btn-small" id="addJobButton">+ Add lead</button></div>
+      </div>
+
+      <div class="shortlist-panel glass">
+        <div class="panel-title">
+          <div><span>LIVE DOMAIN-TRANSITION SHORTLIST</span><h3>20 current jobs to review</h3><small id="shortlistNote">Ranked for analytics fit · call-centre and BPO-process work excluded</small></div>
+          <select id="shortlistLocation" aria-label="Shortlist location"><option value="preferred">All preferred locations</option><option value="kolkata">Kolkata</option><option value="bengaluru">Bengaluru</option><option value="hyderabad">Hyderabad</option><option value="remote">Remote</option><option value="other-india">Other India</option></select>
+        </div>
+        <div class="shortlist-grid" id="shortlistGrid"><div class="skeleton wide"></div></div>
+      </div>
+
+      <div class="tracked-heading"><div><span>YOUR CRM</span><h3>Tracked applications</h3></div><small>Drag saved cards between stages. The board no longer contains permanent demo jobs.</small></div>
+      <div class="kanban" id="kanban" aria-label="Application pipeline board"></div>
+      <p class="drag-note">Use “Track job” on a live card to add it to Interested. Application stages never change automatically without your action.</p>
+    </section>
+
+    <section id="projects" class="content-section section-wrap">
+      <div class="section-heading">
+        <div><div class="section-index">03 / BUILD</div><h2>Enterprise project <em>lab</em></h2><p>Sixteen interview-ready blueprints from fundamentals to production architecture.</p></div>
+        <div class="project-legend"><span><i class="dot basic"></i> Foundation</span><span><i class="dot intermediate"></i> Intermediate</span><span><i class="dot advanced"></i> Advanced</span></div>
+      </div>
+      <div class="project-grid" id="projectGrid"><div class="project-card skeleton-card"></div><div class="project-card skeleton-card"></div></div>
+
+      <div class="trend-panel glass">
+        <div class="panel-title"><div><span>DAILY INSPIRATION SIGNAL</span><h3>Recently updated public portfolio work</h3></div><small>GitHub signal · not an interview-frequency claim</small></div>
+        <div class="trend-scroller" id="trendGrid"><div class="skeleton wide"></div></div>
+      </div>
+    </section>
+
+    <section id="roadmap" class="content-section section-wrap">
+      <div class="section-heading">
+        <div><div class="section-index">04 / TRANSITION</div><h2>Data Analyst <em>roadmap</em></h2><p>A complete domain-change path from BPO operations experience to evidence-backed analytics work.</p></div>
+        <div class="roadmap-progress"><div><strong id="roadmapPercent">0%</strong><small id="roadmapCount">0 of 0 complete</small></div><span><i id="roadmapBar"></i></span></div>
+      </div>
+      <div class="roadmap-priority glass"><b>YOUR TRANSFERABLE ADVANTAGE</b><p>Use your operations, SLA, AHT, WFM and stakeholder experience as business context—but prove the domain change with SQL, Power BI, Excel, Python and portfolio evidence. Do not present BPO process work as the target role.</p></div>
+      <div class="roadmap-grid" id="roadmapGrid"></div>
+      <p class="drag-note">Roadmap progress is private and saved on this device, so it also works in the installed PWA during travel.</p>
+    </section>
+
+    <section id="skills" class="content-section section-wrap">
+      <div class="section-heading">
+        <div><div class="section-index">05 / SHARPEN</div><h2>Skills mastery <em>matrix</em></h2><p>Adjust self-assessments as evidence grows. Changes save immediately.</p></div>
+        <div class="readiness-ring"><span id="readinessValue">—</span><small>readiness</small></div>
+      </div>
+      <div class="skill-grid" id="skillGrid"></div>
+    </section>
+
+    <section id="interview" class="content-section section-wrap split-section">
+      <div class="interview-panel glass">
+        <div class="section-index">06 / PRACTICE</div>
+        <h2>Technical interview <em>simulator</em></h2>
+        <div class="sim-controls"><select id="interviewCategory"><option value="">All domains</option><option>SQL</option><option>Power BI</option><option>WFM</option><option>Python</option><option>Analytics</option><option>Architecture</option><option>Behavioral</option></select><select id="interviewDifficulty"><option value="">All levels</option><option>Intermediate</option><option>Advanced</option></select></div>
+        <div class="question-card" id="questionCard">
+          <div class="question-meta"><span id="qCategory">DOMAIN</span><span id="qDifficulty">LEVEL</span></div>
+          <h3 id="qText">Loading a question…</h3>
+          <div class="answer-box" id="answerBox" hidden><span>ARCHITECTURE ANSWER</span><p id="qAnswer"></p></div>
+          <div class="question-actions"><button class="btn btn-primary" id="revealAnswer">Reveal answer</button><button class="btn btn-secondary" id="nextQuestion">Next question →</button></div>
+        </div>
+      </div>
+
+      <div id="ats" class="ats-panel glass">
+        <div class="section-index">07 / TAILOR</div>
+        <h2>ATS resume <em>matcher</em></h2>
+        <p>Paste a real job description. The score is transparent keyword coverage—not a fake recruiter prediction.</p>
+        <label>Target job title<input id="atsTitle" placeholder="e.g. Workforce Management Analyst"></label>
+        <label>Job description<textarea id="atsText" rows="9" placeholder="Paste at least 30 characters from the actual posting…"></textarea></label>
+        <button class="btn btn-primary full" id="runAts">Analyze description</button>
+        <div class="ats-result" id="atsResult" hidden></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="brand"><span class="brand-mark"><span></span></span><span><b>SAM</b><small>CAREER STUDIO</small></span></div>
+    <p>Built as a source-aware career operating system. Verify every listing before applying. <span id="buildLabel">PWA build 2026.11.19-pwa.2</span></p>
+    <div><span id="footerStatus"><i></i> SYSTEM ONLINE</span><a href="mailto:soumyadipsarkar2106@gmail.com">CONTACT</a></div>
+  </footer>
+
+  <dialog id="projectModal" class="modal project-modal">
+    <button class="modal-close" data-close="projectModal" aria-label="Close">×</button>
+    <div class="modal-head"><span id="projectCategory">PROJECT</span><h2 id="projectTitle">Project title</h2><p id="projectObjective"></p></div>
+    <div class="tab-list" role="tablist">
+      <button class="active" data-tab="excel_guide">Excel guide</button><button data-tab="powerbi_dax">Power BI &amp; DAX</button><button data-tab="production_sql">Production SQL</button><button data-tab="python_script">Python script</button>
+    </div>
+    <div class="code-toolbar"><span id="codeLabel">EXECUTION GUIDE</span><button id="copyProjectCode">Copy content</button></div>
+    <pre class="code-view"><code id="projectCode"></code></pre>
+    <div class="modal-footer"><span id="datasetStatus">Dataset source not checked</span><a id="datasetLink" class="btn btn-primary" href="#" target="_blank" rel="noopener">Open dataset source ↗</a></div>
+  </dialog>
+
+  <dialog id="jobModal" class="modal compact-modal">
+    <button class="modal-close" data-close="jobModal" aria-label="Close">×</button>
+    <div class="modal-head"><span>PIPELINE LEAD</span><h2 id="jobModalTitle">Add a lead</h2><p>Use a real source URL. Manual entries are not marked verified.</p></div>
+    <form id="jobForm">
+      <input type="hidden" id="jobLiveId">
+      <div class="form-grid"><label>Job title<input id="jobTitle" required maxlength="200"></label><label>Company<input id="jobCompany" required maxlength="160"></label></div>
+      <div class="form-grid"><label>Location<input id="jobLocation" maxlength="120"></label><label>Portal<input id="jobPortal" value="Direct" maxlength="80"></label></div>
+      <label>Application URL<input id="jobUrl" type="url" required></label>
+      <label>Notes<textarea id="jobNotes" rows="3" maxlength="2000"></textarea></label>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-close="jobModal">Cancel</button><button class="btn btn-primary" type="submit">Save to pipeline</button></div>
+    </form>
+  </dialog>
+
+  <button class="jarvis-fab" id="jarvisFab" aria-controls="jarvisPanel" aria-expanded="false"><span class="jarvis-core"></span><b>JARVIS</b></button>
+  <aside class="jarvis-panel" id="jarvisPanel" aria-label="Jarvis career assistant" aria-hidden="true">
+    <div class="jarvis-head"><div><span class="jarvis-core"></span><div><b>JARVIS</b><small>LIVE CAREER ASSISTANT</small></div></div><button id="jarvisClose" aria-label="Close Jarvis">×</button></div>
+    <div class="jarvis-messages" id="jarvisMessages" aria-live="polite"><div class="jarvis-message assistant">Ask me “What Data Analyst jobs are available in Kolkata?”, “Show remote Power BI jobs”, “Refresh jobs”, or “Open my roadmap”.</div></div>
+    <div class="jarvis-suggestions"><button data-command="What Data Analyst jobs are available in Kolkata?">Kolkata jobs</button><button data-command="Show remote Power BI jobs">Remote Power BI</button><button data-command="Open my roadmap">Roadmap</button><button data-command="Refresh jobs">Refresh</button></div>
+    <form class="jarvis-input" id="jarvisForm"><button type="button" id="jarvisMic" aria-label="Speak to Jarvis" title="Speak">◉</button><input id="jarvisText" autocomplete="off" placeholder="Ask Jarvis about jobs…" aria-label="Ask Jarvis"><button type="submit" aria-label="Send to Jarvis">➜</button></form>
+    <small class="jarvis-privacy">Voice recognition uses your Android browser. Jarvis searches this app's live database and never applies without your action.</small>
+  </aside>
+
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+  <script src="/static/three.min.js?v=2026.11.19-pwa.2"></script>
+  <script src="/static/scene.js?v=2026.11.19-pwa.2"></script>
+  <script src="/static/app.js?v=2026.11.19-pwa.2"></script>
+</body>
+</html>
