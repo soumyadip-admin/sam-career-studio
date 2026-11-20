@@ -5,6 +5,7 @@ const state = { roles: [], portals: [], liveJobs: [], liveCount: 0, shortlist: [
 let deferredInstallPrompt = null;
 let jarvisRecognition = null;
 let accessGatePromise = null;
+let lastWakeNotice = 0;
 
 const ROADMAP_PHASES = [
   {title:'Analytics foundation', duration:'Weeks 1–2', tasks:[
@@ -76,7 +77,7 @@ function requestAccessKey() {
       if (!candidate) { error.textContent = 'Enter the private app access key saved in Render.'; return; }
       submit.disabled = true; submit.textContent = 'Checking…'; error.textContent = '';
       try {
-        const check = await fetch('/api/auth/verify', {headers:{'X-App-Key':candidate,'Cache-Control':'no-store'}, cache:'no-store'});
+        const check = await fetchWithWakeRetry('/api/auth/verify', {headers:{'X-App-Key':candidate,'Cache-Control':'no-store'}, cache:'no-store'}, 4);
         if (!check.ok) { error.textContent = 'That key was not accepted. Check capitalization and use the latest Render value.'; input.select(); return; }
         localStorage.setItem('samAppAccessKey', candidate); cleanup(); dialog.close(); resolve(candidate); toast('Private app access confirmed.');
       } catch {
@@ -89,10 +90,33 @@ function requestAccessKey() {
   return accessGatePromise;
 }
 
+const WAKE_RETRY_DELAYS = [2000, 4000, 7000, 10000, 15000, 20000];
+const TRANSIENT_SERVER_STATUS = new Set([502, 503, 504]);
+const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+function announceServerWake() {
+  if (Date.now() - lastWakeNotice < 15000) return;
+  lastWakeNotice = Date.now(); toast('Free server is waking up. Retrying automatically…', 'error');
+}
+async function fetchWithWakeRetry(url, options = {}, maxRetries = WAKE_RETRY_DELAYS.length) {
+  let lastError = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      if (!TRANSIENT_SERVER_STATUS.has(response.status) || attempt === maxRetries) return response;
+      lastError = new Error(`Temporary server response ${response.status}`);
+    } catch (error) {
+      lastError = error;
+      if (!navigator.onLine || attempt === maxRetries) throw error;
+    }
+    announceServerWake(); await wait(WAKE_RETRY_DELAYS[Math.min(attempt, WAKE_RETRY_DELAYS.length - 1)]);
+  }
+  throw lastError || new Error('Server unavailable');
+}
+
 async function api(url, options = {}, retried = false) {
   const accessKey = localStorage.getItem('samAppAccessKey') || '';
   const headers = {'Content-Type':'application/json', ...(accessKey ? {'X-App-Key': accessKey} : {}), ...(options.headers || {})};
-  const response = await fetch(url, {...options, headers});
+  const response = await fetchWithWakeRetry(url, {...options, headers});
   if (response.status === 401 && !retried) {
     const latestKey = localStorage.getItem('samAppAccessKey') || '';
     if (latestKey && latestKey !== accessKey) return api(url, options, true);
@@ -101,7 +125,9 @@ async function api(url, options = {}, retried = false) {
     return api(url, options, true);
   }
   if (!response.ok) {
-    let detail = `Request failed (${response.status})`;
+    let detail = TRANSIENT_SERVER_STATUS.has(response.status)
+      ? 'The free server is still waking up. Wait one minute and try again.'
+      : `Request failed (${response.status})`;
     try { const body = await response.json(); detail = body.detail || detail; } catch {}
     if (response.status === 401) localStorage.removeItem('samAppAccessKey');
     throw new Error(detail);
@@ -574,11 +600,11 @@ function bindEvents() {
 
 async function preparePrivateAccess() {
   try {
-    const health = await fetch('/api/health', {cache:'no-store'}).then(response => response.json());
+    const health = await fetchWithWakeRetry('/api/health', {cache:'no-store'}).then(response => response.json());
     if (!health.access_key_required) return;
     const saved = localStorage.getItem('samAppAccessKey') || '';
     if (saved) {
-      const check = await fetch('/api/auth/verify', {headers:{'X-App-Key':saved,'Cache-Control':'no-store'}, cache:'no-store'});
+      const check = await fetchWithWakeRetry('/api/auth/verify', {headers:{'X-App-Key':saved,'Cache-Control':'no-store'}, cache:'no-store'}, 4);
       if (check.ok) return;
       localStorage.removeItem('samAppAccessKey');
     }

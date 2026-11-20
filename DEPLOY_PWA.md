@@ -1,6 +1,6 @@
 # Deploy and install Sam Career Studio on Android for ₹0
 
-> Current build: `2026.11.19-pwa.3`. For a beginner-friendly phone walkthrough and old-build cleanup steps, read `MOBILE_APP_GUIDE.md` first.
+> Current build: `2026.11.19-pwa.4`. For a beginner-friendly phone walkthrough and old-build cleanup steps, read `MOBILE_APP_GUIDE.md` first.
 
 ## Recommended no-cost setup
 
@@ -32,7 +32,7 @@ A public repository gets the simplest no-cost scheduled Actions allowance. If th
 4. Render detects `render.yaml`.
 5. When asked for `APP_ACCESS_KEY`, enter a long private passphrase. Do not commit it to GitHub.
 6. Deploy and wait for a URL similar to `https://sam-career-studio.onrender.com`.
-7. Open `<your-url>/api/health`. It should show build `2026.11.19-pwa.3`.
+7. Open `<your-url>/api/health`. It should show build `2026.11.19-pwa.4`.
 
 The app asks for the same access key on first use and stores it only in that browser/PWA profile.
 

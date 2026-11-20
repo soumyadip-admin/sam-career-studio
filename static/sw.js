@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'sam-career-pwa-2026-11-19-3';
+const CACHE_VERSION = 'sam-career-pwa-2026-11-19-4';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const DATA_CACHE = `${CACHE_VERSION}-data`;
 const SHELL = [
@@ -25,14 +25,21 @@ self.addEventListener('activate', event => {
   );
 });
 
-async function networkFirst(request, cacheName) {
+async function networkFirst(request, cacheName, ignoreSearch = false) {
   const cache = await caches.open(cacheName);
   try {
     const response = await fetch(request);
-    if (response.ok) await cache.put(request, response.clone());
+    if (response.ok) {
+      await cache.put(request, response.clone());
+      return response;
+    }
+    if (response.status >= 500) {
+      const cached = await cache.match(request, {ignoreSearch});
+      if (cached) return cached;
+    }
     return response;
   } catch (error) {
-    const cached = await cache.match(request);
+    const cached = await cache.match(request, {ignoreSearch});
     if (cached) return cached;
     throw error;
   }
@@ -53,7 +60,7 @@ self.addEventListener('fetch', event => {
   if (url.origin !== self.location.origin) return;
 
   if (request.mode === 'navigate') {
-    event.respondWith(networkFirst(request, SHELL_CACHE).catch(() => caches.match('/')));
+    event.respondWith(networkFirst(request, SHELL_CACHE, true).catch(() => caches.match('/')));
     return;
   }
   if (url.pathname.startsWith('/api/')) {

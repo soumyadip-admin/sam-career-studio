@@ -23,7 +23,7 @@ from init_db import DB_PATH, init_db
 from scanner import SCAN_LOCK, run_full_scan
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_ID = "2026.11.19-pwa.3"
+BUILD_ID = "2026.11.19-pwa.4"
 APP_ACCESS_KEY = os.getenv("APP_ACCESS_KEY", "").strip()
 VALID_STATUSES = ["Interested", "Applied", "Assessment", "Interview", "HR Round", "Selected"]
 LOCATION_GROUPS = {"preferred", "kolkata", "bengaluru", "hyderabad", "remote", "other-india"}
