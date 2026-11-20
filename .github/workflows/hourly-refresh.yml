@@ -1,0 +1,64 @@
+name: Hourly career data refresh
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Validate required configuration
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          APP_ACCESS_KEY: ${{ secrets.APP_ACCESS_KEY }}
+        run: |
+          test -n "$APP_URL" || { echo "::error::Missing APP_URL"; exit 1; }
+          test -n "$APP_ACCESS_KEY" || { echo "::error::Missing APP_ACCESS_KEY"; exit 1; }
+
+      - name: Wake the free web service
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          curl --fail --silent --show-error --retry 8 --retry-delay 15 --retry-all-errors --max-time 180 "$APP_URL/api/health"
+
+      - name: Start source refresh
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          APP_ACCESS_KEY: ${{ secrets.APP_ACCESS_KEY }}
+        run: |
+          curl --fail --silent --show-error --max-time 60 \
+            -X POST -H "X-App-Key: $APP_ACCESS_KEY" \
+            "$APP_URL/api/scraper/scan"
+
+      - name: Wait for completion and require populated radar
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          APP_ACCESS_KEY: ${{ secrets.APP_ACCESS_KEY }}
+        run: |
+          completed=false
+          for attempt in $(seq 1 75); do
+            body=$(curl --fail --silent --show-error --max-time 60 \
+              -H "X-App-Key: $APP_ACCESS_KEY" \
+              "$APP_URL/api/scraper/status")
+            echo "$body" | python -m json.tool | head -80
+            running=$(python -c 'import json,sys; print(str(json.load(sys.stdin).get("running", False)).lower())' <<< "$body")
+            if [ "$running" = "false" ]; then completed=true; break; fi
+            sleep 12
+          done
+          if [ "$completed" != "true" ]; then
+            echo "::error::Refresh did not finish inside 15 minutes"
+            exit 1
+          fi
+
+          health=$(curl --fail --silent --show-error --max-time 60 "$APP_URL/api/health")
+          echo "$health" | python -m json.tool
+          python -c 'import json,sys
+          data=json.load(sys.stdin)
+          run=data.get("last_scan") or {}
+          active=int(data.get("active_jobs") or 0)
+          if run.get("status") == "failed": raise SystemExit("Latest scanner run failed")
+          if active < 20: raise SystemExit(f"Radar has only {active} active jobs; at least 20 are required")
+          print(f"Validated populated radar: {active} active jobs")' <<< "$health"
