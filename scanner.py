@@ -31,7 +31,33 @@ MAX_AGE_HOURS = 72
 SHEET_LOOKBACK_DAYS = 7
 JOBS_SHEET_ID = "1X6CE7ka9rbj-2xm8YdubQ9e3rzxOk_0KCpELvKRZxEE"
 JOBS_SHEET_CSV = f"https://docs.google.com/spreadsheets/d/{JOBS_SHEET_ID}/export?format=csv&gid=0"
-TARGET_LOCATIONS = ("bangalore", "bengaluru", "kolkata", "hyderabad", "remote", "india", "worldwide", "anywhere", "apac", "asia")
+INDIA_LOCATION_TERMS = (
+    "india", "kolkata", "calcutta", "bengaluru", "bangalore", "hyderabad",
+    "gurugram", "gurgaon", "chennai", "mumbai", "pune", "new delhi", "delhi",
+    "noida", "ghaziabad", "ahmedabad", "gandhinagar", "jaipur", "indore",
+    "kochi", "cochin", "thiruvananthapuram", "trivandrum", "bhubaneswar",
+    "chandigarh", "lucknow", "nagpur", "mysuru", "mysore", "coimbatore",
+    "visakhapatnam", "vizag", "west bengal", "karnataka", "telangana",
+    "maharashtra", "tamil nadu", "andhra pradesh", "uttar pradesh", "haryana",
+    "gujarat", "rajasthan", "madhya pradesh", "odisha", "orissa", "kerala",
+    "punjab", "assam", "bihar", "jharkhand", "chhattisgarh", "uttarakhand",
+    "goa", "jammu", "srinagar",
+)
+FOREIGN_LOCATION_TERMS = (
+    "united states", "usa", "u.s.", "canada", "united kingdom", " uk", "europe",
+    "france", "germany", "netherlands", "ireland", "spain", "italy", "portugal",
+    "singapore", "malaysia", "philippines", "indonesia", "vietnam", "thailand",
+    "australia", "new zealand", "serbia", "croatia", "poland", "romania",
+    "south africa", "brazil", "mexico", "united arab emirates", "uae", "dubai",
+)
+TARGET_ROLE_TERMS = (
+    "data analyst", "data analytics", "business analyst", "business intelligence",
+    "bi analyst", "power bi", "reporting analyst", "reporting and analytics",
+    "reporting & analytics", "mis analyst", "mis executive", "operations analyst",
+    "operations analytics", "data operations", "workforce analyst", "workforce analytics",
+    "wfm analyst", "customer insights", "revenue analyst", "process excellence",
+    "supply chain analyst", "supply chain data", "analytics analyst",
+)
 
 # Compact queries avoid hammering a public search endpoint. Bangalore is refreshed
 # every hour; Kolkata and Hyderabad alternate. The full location matrix is covered
@@ -169,16 +195,27 @@ def exclusion_reason(title: str, description: str = "") -> str | None:
     return None
 
 
-def location_allowed(location: str, source: str) -> bool:
-    value = clean(location).lower()
+def target_role_allowed(title: str) -> bool:
+    """Keep realistic analyst/BI/MIS/reporting transition titles only."""
+    value = clean(title).lower().replace("–", "-")
+    return bool(value and any(term in value for term in TARGET_ROLE_TERMS))
+
+
+def location_allowed(location: str, source: str = "") -> bool:
+    """Keep India roles and genuinely geography-open remote work.
+
+    Search APIs can return overseas vacancies even when queried for India. An empty or
+    broad APAC/Asia location is not enough evidence that an Indian applicant is eligible.
+    """
+    value = clean(location).lower().replace("–", "-")
     if not value:
-        return source in {"LinkedIn", "Shine", "Instahyre"}
-    if any(term in value for term in TARGET_LOCATIONS):
-        # Exclude remote roles explicitly restricted to a different geography.
-        restricted = ("united states", " usa", "u.s.", "canada", "europe", "united kingdom", " uk", "germany", "france only")
-        unrestricted = any(term in value for term in ("worldwide", "anywhere", "india", "apac", "asia"))
-        if "remote" in value and not unrestricted and any(term in value for term in restricted):
-            return False
+        return False
+    if any(term in value for term in INDIA_LOCATION_TERMS):
+        return True
+    remote_open = any(term in value for term in ("remote", "worldwide", "anywhere"))
+    explicitly_global = any(term in value for term in ("worldwide", "anywhere", "global"))
+    explicitly_foreign = any(term in value for term in FOREIGN_LOCATION_TERMS)
+    if remote_open and (explicitly_global or not explicitly_foreign):
         return True
     return False
 
@@ -464,10 +501,14 @@ async def employer_board_jobs(client: httpx.AsyncClient) -> tuple[list[dict], li
             for item in response.json():
                 categories = item.get("categories") or {}
                 url = item.get("hostedUrl") or item.get("applyUrl")
+                title = clean(item.get("text"))
+                location = clean(categories.get("location"))
+                if not target_role_allowed(title) or not location_allowed(location, "Employer Direct"):
+                    continue
                 jobs.append(normal_job(
                     source="Employer Direct", external_id=clean(item.get("id")) or stable_id(board, url or ""),
-                    title=clean(item.get("text")), company=board.replace("-", " ").title(),
-                    location=clean(categories.get("location")), role_query="All non-call-centre",
+                    title=title, company=board.replace("-", " ").title(),
+                    location=location, role_query="Target analytics roles",
                     description=clean(item.get("descriptionPlain") or item.get("descriptionBodyPlain") or item.get("additionalPlain")),
                     url=url, posted_at=item.get("createdAt"), salary_text=None,
                     employment_type=clean(categories.get("commitment")) or None,
@@ -481,10 +522,14 @@ async def employer_board_jobs(client: httpx.AsyncClient) -> tuple[list[dict], li
             response.raise_for_status()
             for item in response.json().get("jobs", []):
                 url = item.get("absolute_url")
+                title = clean(item.get("title"))
+                location = clean((item.get("location") or {}).get("name"))
+                if not target_role_allowed(title) or not location_allowed(location, "Employer Direct"):
+                    continue
                 jobs.append(normal_job(
                     source="Employer Direct", external_id=str(item.get("id") or stable_id(board, url or "")),
-                    title=clean(item.get("title")), company=clean(item.get("company_name")) or board.title(),
-                    location=clean((item.get("location") or {}).get("name")), role_query="All non-call-centre",
+                    title=title, company=clean(item.get("company_name")) or board.title(),
+                    location=location, role_query="Target analytics roles",
                     description=strip_html(html.unescape(str(item.get("content") or ""))), url=url,
                     posted_at=item.get("first_published") or item.get("updated_at"), salary_text=None,
                     employment_type=None, provenance=f"Direct employer Greenhouse feed: {board}",
@@ -664,8 +709,10 @@ def upsert_jobs(jobs: list[dict]) -> tuple[int, int, int]:
         for url, job in unique.items():
             title = clean(job.get("title")); description = clean(job.get("description"))
             reason = exclusion_reason(title, description)
+            if not reason and not target_role_allowed(title):
+                reason = "Outside target analyst/BI/MIS/reporting roles"
             if not reason and not location_allowed(clean(job.get("location")), clean(job.get("source"))):
-                reason = "Outside target locations or remote eligibility"
+                reason = "Outside India target locations or verified remote eligibility"
             fresh, verified, normalized_posted = is_fresh(job.get("posted_at"))
             if reason:
                 excluded += 1
@@ -718,6 +765,11 @@ def upsert_jobs(jobs: list[dict]) -> tuple[int, int, int]:
 
 
 async def run_full_scan() -> dict:
+    """Refresh sources incrementally, committing the Sheet fallback first.
+
+    A heavy or blocked portal must never leave a newly started free Render instance with
+    an empty radar. Each source is saved independently, so partial progress survives.
+    """
     if SCAN_LOCK.locked():
         return {"status": "already_running"}
     async with SCAN_LOCK:
@@ -725,34 +777,70 @@ async def run_full_scan() -> dict:
         cur = con.execute("INSERT INTO scanner_runs(started_at,status) VALUES(?,'running')", (started,))
         run_id = cur.lastrowid; con.commit(); con.close()
         try:
-            # Kolkata is Sam's home location and is refreshed on every run. Bangalore is
-            # always included by the source adapters; Hyderabad/India-wide roles still
-            # arrive through direct feeds and the supplied tracker sheet.
             local_location = "Kolkata"
-            all_jobs: list[dict] = []; errors: list[str] = []; succeeded = 0
-            timeout = httpx.Timeout(25.0, connect=12.0)
-            async with httpx.AsyncClient(headers={"User-Agent": USER_AGENT, "Accept-Language": "en-IN,en;q=0.9"}, follow_redirects=True, timeout=timeout) as client:
-                # Named target portals with accessible public result endpoints.
-                named_results = await asyncio.gather(
-                    linkedin_jobs(client, local_location), shine_jobs(client, local_location),
-                    instahyre_jobs(client), jobspy_jobs(local_location)
-                )
-                # Free public APIs and direct-employer boards broaden the discovery scope.
-                public_results = await asyncio.gather(
-                    remotive_jobs(client), jobicy_jobs(client), arbeitnow_jobs(client),
-                    remoteok_jobs(client), himalayas_jobs(client), employer_board_jobs(client),
-                    jobs_sheet_jobs(client),
-                )
-                for source_jobs, source_errors in [*named_results, *public_results]:
-                    all_jobs += source_jobs; errors += source_errors
-                    if source_jobs: succeeded += 1
+            errors: list[str] = []
+            succeeded = seen = new = excluded = 0
+            timeout = httpx.Timeout(45.0, connect=12.0)
+
+            def save_source(label: str, source_jobs: list[dict]) -> None:
+                nonlocal seen, new, excluded, succeeded
+                if not source_jobs:
+                    return
+                try:
+                    source_seen, source_new, source_excluded = upsert_jobs(source_jobs)
+                    seen += source_seen; new += source_new; excluded += source_excluded
+                    succeeded += 1
+                    print(f"Scanner run {run_id}: saved {source_seen} records from {label}")
+                except Exception as exc:
+                    errors.append(f"{label} save: {type(exc).__name__}: {str(exc)[:160]}")
+
+            async with httpx.AsyncClient(
+                headers={"User-Agent": USER_AGENT, "Accept-Language": "en-IN,en;q=0.9"},
+                follow_redirects=True,
+                timeout=timeout,
+            ) as client:
+                # Commit the public tracker before slower web sources. These records stay
+                # age-unknown and are never represented as freshly posted vacancies.
+                try:
+                    sheet_jobs, sheet_errors = await jobs_sheet_jobs(client)
+                    errors += sheet_errors
+                    save_source("Google Sheet Tracker", sheet_jobs)
+                except Exception as exc:
+                    errors.append(f"Google Sheet Tracker: {type(exc).__name__}: {str(exc)[:160]}")
+
+                # Run sources sequentially to keep memory below free-host limits. A source
+                # failure is isolated and does not roll back already committed records.
+                source_fetchers = [
+                    ("LinkedIn", lambda: linkedin_jobs(client, local_location)),
+                    ("Shine", lambda: shine_jobs(client, local_location)),
+                    ("Instahyre", lambda: instahyre_jobs(client)),
+                    ("Naukri/Indeed/Glassdoor", lambda: jobspy_jobs(local_location)),
+                    ("Remotive", lambda: remotive_jobs(client)),
+                    ("Jobicy", lambda: jobicy_jobs(client)),
+                    ("Arbeitnow", lambda: arbeitnow_jobs(client)),
+                    ("RemoteOK", lambda: remoteok_jobs(client)),
+                    ("Himalayas", lambda: himalayas_jobs(client)),
+                    ("Employer Direct", lambda: employer_board_jobs(client)),
+                ]
+                for label, fetcher in source_fetchers:
+                    try:
+                        source_jobs, source_errors = await fetcher()
+                        errors += source_errors
+                        save_source(label, source_jobs)
+                    except Exception as exc:
+                        errors.append(f"{label}: {type(exc).__name__}: {str(exc)[:160]}")
+
                 trend_count, trend_errors = await github_project_trends(client)
                 errors += trend_errors
-                if trend_count: succeeded += 1
-                await verify_project_sources(client)
-                succeeded += 1
-            seen, new, excluded = upsert_jobs(all_jobs)
-            completed = utcnow(); status = "completed" if succeeded >= 10 else "partial"
+                if trend_count:
+                    succeeded += 1
+                project_count, project_errors = await verify_project_sources(client)
+                errors += project_errors
+                if project_count:
+                    succeeded += 1
+
+            completed = utcnow()
+            status = "completed" if succeeded >= 8 and seen > 0 else "partial"
             con = db()
             con.execute("""UPDATE scanner_runs SET completed_at=?,status=?,sources_attempted=13,
                         sources_succeeded=?,jobs_seen=?,jobs_new=?,error_log=? WHERE id=?""",

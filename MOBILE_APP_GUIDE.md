@@ -6,7 +6,7 @@ This build is a **Progressive Web App (PWA)**. It is installed from a secure HTT
 
 The desktop screen with six fixed cards (Amazon, Concentrix, Startek, Alorica, Teleperformance and Genpact) is an older build. The current app footer must say:
 
-`PWA build 2026.11.19-pwa.4`
+`PWA build 2026.11.20-pwa.5`
 
 The new build removes permanent demo/search cards. It has:
 
@@ -42,7 +42,7 @@ Android Chrome requires HTTPS for a normal PWA installation. Render Free supplie
 6. Choose the Free plan and deploy.
 7. Wait for the status to become **Live**. A free cold start can take about one minute.
 8. Copy the Render URL, for example `https://sam-career-studio.onrender.com`.
-9. Open `https://YOUR-URL/api/health`. Check that it says `"build":"2026.11.19-pwa.4"`.
+9. Open `https://YOUR-URL/api/health`. Check that it says `"build":"2026.11.20-pwa.5"`.
 
 ### 3. Enable hourly refresh while the free service sleeps
 
@@ -69,7 +69,7 @@ The dashboard's **Refresh now** button can request an immediate refresh. Hourly 
 
 ## If Android still shows old jobs
 
-1. Confirm the footer build is `2026.11.19-pwa.4`.
+1. Confirm the footer build is `2026.11.20-pwa.5`.
 2. Close all tabs for the old site.
 3. In Chrome open **Settings → Site settings → Data stored**.
 4. Find the old Sam Career URL and choose **Clear & reset**.

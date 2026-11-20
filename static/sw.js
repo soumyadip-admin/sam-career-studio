@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'sam-career-pwa-2026-11-19-4';
+const CACHE_VERSION = 'sam-career-pwa-2026-11-20-5';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const DATA_CACHE = `${CACHE_VERSION}-data`;
 const SHELL = [

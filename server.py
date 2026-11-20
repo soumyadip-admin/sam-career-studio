@@ -23,7 +23,7 @@ from init_db import DB_PATH, init_db
 from scanner import SCAN_LOCK, run_full_scan
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_ID = "2026.11.19-pwa.4"
+BUILD_ID = "2026.11.20-pwa.5"
 APP_ACCESS_KEY = os.getenv("APP_ACCESS_KEY", "").strip()
 VALID_STATUSES = ["Interested", "Applied", "Assessment", "Interview", "HR Round", "Selected"]
 LOCATION_GROUPS = {"preferred", "kolkata", "bengaluru", "hyderabad", "remote", "other-india"}
@@ -235,8 +235,18 @@ def service_worker():
 
 @app.get("/api/health")
 def health():
+    """Public, secret-free liveness plus enough scan state to diagnose an empty radar."""
+    active = one("SELECT COUNT(*) AS n FROM live_scraped_jobs WHERE is_active=1 AND excluded_reason IS NULL")
+    run = one("""SELECT id,completed_at,status,sources_attempted,sources_succeeded,jobs_seen,jobs_new,error_log
+                 FROM scanner_runs ORDER BY id DESC LIMIT 1""")
+    last_scan = None
+    if run:
+        error_lines = [line for line in str(run.pop("error_log") or "").splitlines() if line.strip()]
+        last_scan = {**run, "error_count": len(error_lines),
+                     "failure": error_lines[0][:240] if run.get("status") == "failed" and error_lines else None}
     return {"status": "ok", "build": BUILD_ID, "database": DB_PATH.exists(),
-            "scanner_running": SCAN_LOCK.locked(), "access_key_required": bool(APP_ACCESS_KEY), "utc": now()}
+            "scanner_running": SCAN_LOCK.locked(), "active_jobs": int((active or {}).get("n") or 0),
+            "last_scan": last_scan, "access_key_required": bool(APP_ACCESS_KEY), "utc": now()}
 
 
 @app.get("/api/auth/verify")
