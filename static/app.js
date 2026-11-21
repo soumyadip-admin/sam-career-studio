@@ -1,7 +1,7 @@
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 const STATUSES = ['Interested', 'Applied', 'Assessment', 'Interview', 'HR Round', 'Selected'];
-const state = { roles: [], portals: [], liveJobs: [], liveCount: 0, shortlist: [], jobs: [], projects: [], currentProject: null, currentTab: 'excel_guide', questions: [], qIndex: 0, visibleJobs: 20, jarvisLastJobs: [], previousVisit: localStorage.getItem('samLastJobVisit') || null };
+const state = { roles: [], portals: [], liveJobs: [], liveCount: 0, shortlist: [], jobs: [], projects: [], currentProject: null, currentTab: 'excel_guide', questions: [], qIndex: 0, visibleJobs: 20, jarvisLastJobs: [], resumeRequest: null, previousVisit: localStorage.getItem('samLastJobVisit') || null };
 let deferredInstallPrompt = null;
 let jarvisRecognition = null;
 let accessGatePromise = null;
@@ -467,6 +467,88 @@ function renderQuestion() {
   $('#qCategory').textContent = q.category; $('#qDifficulty').textContent = q.difficulty; $('#qText').textContent = q.question; $('#qAnswer').textContent = q.answer;
 }
 
+function resumeChips(items, className, emptyText) {
+  return items.length ? items.map(item => `<span class="${className}">${esc(item)}</span>`).join('') : `<span>${esc(emptyText)}</span>`;
+}
+function renderResumeAnalysis(result) {
+  $('#resumeEmpty').hidden = true; $('#resumeResult').hidden = false;
+  $('#resumeRecommendation').textContent = result.recommendation || 'ANALYSIS COMPLETE';
+  $('#resumeResultTitle').textContent = `${result.job_title}${result.company ? ` · ${result.company}` : ''}`;
+  $('#resumeAnalysisId').textContent = `Analysis ${result.analysis_id} · ${result.scoring_version} · ${result.source_correction}`;
+  $('#resumeScore').textContent = `${Number(result.score || 0)}%`;
+  $('#resumeDisclaimer').textContent = result.disclaimer || '';
+  $('#resumeSkillScore').textContent = `${Number(result.breakdown?.supported_keyword_coverage || 0)}%`;
+  $('#resumeOriginalScore').textContent = `${Number(result.original_keyword_visibility || 0)}%`;
+  $('#resumeTailoredScore').textContent = `${Number(result.tailored_keyword_visibility || 0)}%`;
+  $('#resumeExperienceScore').textContent = `${Number(result.breakdown?.experience_alignment || 0)}%`;
+  const warnings = [
+    result.eligibility_warning ? `<p class="resume-warning">${esc(result.eligibility_warning)}</p>` : '',
+    result.mixed_role_warning ? `<p class="resume-warning mixed">${esc(result.mixed_role_warning)}</p>` : '',
+  ].join('');
+  $('#resumeWarnings').innerHTML = warnings;
+  $('#resumeMatched').innerHTML = resumeChips(result.matched || [], 'match', 'No supported JD skill group detected');
+  $('#resumePartial').innerHTML = resumeChips(result.partial || [], '', 'No partial-evidence requirement detected');
+  $('#resumeMissing').innerHTML = resumeChips(result.missing || [], 'missing', 'No detected taxonomy gap');
+  const evidence = (result.requirements || []).map(item => `<div class="resume-evidence-row ${esc(item.status)}"><b>${esc(item.label)} · ${esc(item.status.toUpperCase())}</b><span>JD wording: ${esc((item.keywords || []).join(', '))}</span><small>${esc(item.evidence)}</small></div>`).join('');
+  const checks = (result.ats_checks || []).map(check => `<div class="resume-evidence-row matched"><b>✓ ${esc(check)}</b></div>`).join('');
+  $('#resumeEvidence').innerHTML = evidence + checks;
+  $('#resumeSummary').textContent = result.summary_preview || '';
+}
+async function buildTailoredResume(event) {
+  event.preventDefault();
+  const request = {
+    job_title: $('#resumeTitle').value.trim() || 'Target role',
+    company: $('#resumeCompany').value.trim(),
+    source_url: $('#resumeSourceUrl').value.trim(),
+    job_description: $('#resumeDescription').value.trim(),
+  };
+  if (request.job_description.length < 30) return toast('Paste at least 30 characters from a real job description.', 'error');
+  const button = $('#buildResume'); button.disabled = true; button.textContent = 'Analyzing evidence…';
+  try {
+    const result = await api('/api/resume/analyze', {method:'POST', body:JSON.stringify(request)});
+    state.resumeRequest = request; renderResumeAnalysis(result);
+    $('#resumeResult').scrollIntoView({behavior:'smooth', block:'start'});
+    toast('Tailored resume is ready. Review the gaps before downloading.');
+  } catch (error) { toast(error.message, 'error'); }
+  finally { button.disabled = false; button.textContent = 'Analyze & build tailored resume'; }
+}
+function contentDispositionFilename(header, fallback) {
+  const match = String(header || '').match(/filename="?([^";]+)"?/i);
+  return match ? match[1] : fallback;
+}
+async function downloadTailoredResume(fileFormat) {
+  if (!state.resumeRequest) return toast('Analyze a job description first.', 'error');
+  const button = fileFormat === 'pdf' ? $('#downloadResumePdf') : $('#downloadResumeDocx');
+  const oldLabel = button.textContent; button.disabled = true; button.textContent = 'Building file…';
+  try {
+    const fetchDownload = async (retried = false) => {
+      const key = localStorage.getItem('samAppAccessKey') || '';
+      const response = await fetchWithWakeRetry('/api/resume/download', {
+        method:'POST',
+        headers:{'Content-Type':'application/json', ...(key ? {'X-App-Key':key} : {})},
+        body:JSON.stringify({...state.resumeRequest, file_format:fileFormat}),
+      });
+      if (response.status === 401 && !retried) {
+        localStorage.removeItem('samAppAccessKey'); await requestAccessKey(); return fetchDownload(true);
+      }
+      if (!response.ok) {
+        let detail = `Resume download failed (${response.status})`;
+        try { detail = (await response.json()).detail || detail; } catch {}
+        throw new Error(detail);
+      }
+      return response;
+    };
+    const response = await fetchDownload();
+    const blob = await response.blob();
+    const fallback = `Soumyadip_Sarkar_Tailored_Resume.${fileFormat}`;
+    const filename = contentDispositionFilename(response.headers.get('Content-Disposition'), fallback);
+    const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = filename;
+    document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast(`${fileFormat.toUpperCase()} resume downloaded. Review it before applying.`);
+  } catch (error) { toast(error.message, 'error'); }
+  finally { button.disabled = false; button.textContent = oldLabel; }
+}
+
 async function runATS() {
   const job_description = $('#atsText').value.trim(), job_title = $('#atsTitle').value.trim() || 'Target role';
   if (job_description.length < 30) return toast('Paste at least 30 characters from a real job description.', 'error');
@@ -520,7 +602,7 @@ async function askJarvis(command, spoken = false) {
     if (spoken) speakJarvis(result.message);
     if (result.action === 'show_roadmap') $('#roadmap').scrollIntoView({behavior:'smooth'});
     if (result.action === 'show_pipeline') $('#pipeline').scrollIntoView({behavior:'smooth'});
-    if (result.action === 'show_ats') $('#ats').scrollIntoView({behavior:'smooth'});
+    if (result.action === 'show_ats') $('#resume').scrollIntoView({behavior:'smooth'});
     if (result.action === 'refresh_jobs') startSync();
     if (result.action === 'filter_jobs') {
       $('#locationFilter').value = result.location_group || 'preferred';
@@ -581,6 +663,9 @@ function bindEvents() {
   $('#interviewCategory').addEventListener('change', loadQuestions); $('#interviewDifficulty').addEventListener('change', loadQuestions);
   $('#revealAnswer').addEventListener('click', () => { const box=$('#answerBox'); box.hidden=!box.hidden; $('#revealAnswer').textContent=box.hidden?'Reveal answer':'Hide answer'; });
   $('#nextQuestion').addEventListener('click', () => { if(!state.questions.length)return; state.qIndex=(state.qIndex+1)%state.questions.length; renderQuestion(); });
+  $('#resumeForm').addEventListener('submit', buildTailoredResume);
+  $('#downloadResumeDocx').addEventListener('click', () => downloadTailoredResume('docx'));
+  $('#downloadResumePdf').addEventListener('click', () => downloadTailoredResume('pdf'));
   $('#runAts').addEventListener('click', runATS);
   $('#menuButton').addEventListener('click', () => { const open=$('#nav').classList.toggle('open'); $('#menuButton').setAttribute('aria-expanded', String(open)); });
   $$('#nav a').forEach(a=>a.addEventListener('click',()=>$('#nav').classList.remove('open')));

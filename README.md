@@ -1,6 +1,6 @@
 # Sam Career Studio
 
-A responsive, source-aware career command center for **Soumyadip Sarkar (Sam)**. It combines public job discovery, a six-stage application CRM, 16 portfolio blueprints, skills tracking, interview practice and a transparent resume/JD matcher.
+A responsive, source-aware career command center for **Soumyadip Sarkar (Sam)**. It combines public job discovery, a six-stage application CRM, an evidence-first resume studio, 16 portfolio blueprints, skills tracking and interview practice.
 
 ## What is implemented
 
@@ -19,6 +19,7 @@ A responsive, source-aware career command center for **Soumyadip Sarkar (Sam)**.
 - **16 differentiated project blueprints:** Excel, Power BI/DAX, SQL and Python tabs, copy control and checked dataset-source links.
 - **Daily project inspiration signal** from recently updated public GitHub repositories.
 - **Persistent SQLite data:** profile, jobs, live results, portals, roles, projects, trends, skills, interview Q&A and scan runs.
+- **Evidence-first Resume Studio:** paste a real JD, compare supported/partial/missing requirements, and download a single-column DOCX or PDF tailored only from the supplied resume. Startek is corrected to Dec 2025–Sep 2026.
 - **Skills sliders, interview simulator, CSV export and JD-specific ATS-style analysis** with an analysis fingerprint, scoring version, weighted breakdown and truth-safe evidence guidance.
 - Responsive layouts tested at desktop and 390px mobile widths.
 
@@ -32,7 +33,8 @@ This app does not claim that all ten target portals are scraped.
 - **Search launcher** means the control opens a targeted portal search but does not ingest or claim vacancies from that portal.
 - Salaries are displayed only when a source supplies them; none are inferred and there is no salary cap.
 - Call-centre/BPO process exclusions are applied before a record becomes active.
-- The profile match is a transparent relevance heuristic, not a hiring probability or a real employer ATS score.
+- The profile match and Resume Studio readiness percentage are transparent diagnostics, not hiring probabilities or real employer ATS scores. No ATS pass or interview is guaranteed.
+- Resume tailoring reorders supported evidence; missing skills are reported and never inserted.
 - GitHub project trends are inspiration signals, not evidence that a project is frequently asked in interviews.
 - Portal availability, rate limits and posting freshness can change. Always verify on the original source before applying.
 
@@ -115,6 +117,8 @@ chmod +x start.sh
 | `GET/PATCH /api/skills/{id}` | Persistent self-assessments |
 | `GET /api/interview` | Curated practice bank |
 | `POST /api/ats_match` | Truth-safe JD keyword coverage |
+| `POST /api/resume/analyze` | Resume/JD evidence and gap analysis |
+| `POST /api/resume/download` | Generate protected DOCX or PDF resume download |
 | `GET /api/export/jobs.csv` | Download pipeline CSV |
 
 Interactive API documentation is available at `http://127.0.0.1:8000/docs`.
@@ -126,6 +130,7 @@ career_engine/
 ├── init_db.py             # schema, profile and seed content
 ├── scanner.py             # public-source adapters and hourly scanner
 ├── server.py              # FastAPI backend and scheduler
+├── resume_engine.py       # truthful JD analysis and DOCX/PDF generation
 ├── career_engine.db       # persisted SQLite database
 ├── templates/index.html   # complete single-page frontend
 ├── static/

@@ -21,9 +21,10 @@ from pydantic import BaseModel, Field, HttpUrl
 
 from init_db import DB_PATH, init_db
 from scanner import SCAN_LOCK, run_full_scan
+from resume_engine import analyze_job, build_docx, build_pdf, safe_filename
 
 BASE_DIR = Path(__file__).resolve().parent
-BUILD_ID = "2026.11.20-pwa.5"
+BUILD_ID = "2026.11.20-pwa.6"
 APP_ACCESS_KEY = os.getenv("APP_ACCESS_KEY", "").strip()
 VALID_STATUSES = ["Interested", "Applied", "Assessment", "Interview", "HR Round", "Selected"]
 LOCATION_GROUPS = {"preferred", "kolkata", "bengaluru", "hyderabad", "remote", "other-india"}
@@ -207,6 +208,12 @@ class SkillPatch(BaseModel):
 class ATSRequest(BaseModel):
     job_description: str = Field(min_length=30, max_length=30000)
     job_title: str = Field(default="Target role", max_length=200)
+    company: str = Field(default="", max_length=200)
+    source_url: str = Field(default="", max_length=2000)
+
+
+class ResumeDownloadRequest(ATSRequest):
+    file_format: str = Field(default="docx", pattern="^(docx|pdf)$")
 
 
 class JarvisRequest(BaseModel):
@@ -683,130 +690,43 @@ def interview(category: str = "", difficulty: str = ""):
 
 @app.post("/api/ats_match")
 def ats_match(payload: ATSRequest):
-    """Return a deterministic, JD-specific and explainable profile comparison."""
-    jd = re.sub(r"\s+", " ", payload.job_description.lower()).strip()
-    context = f"{payload.job_title.lower()} {jd}"
-    # (search terms, importance, candidate evidence level 0..1)
-    taxonomy = {
-        "SQL": (["sql", "cte", "window function", "query optimization", "stored procedure"], 5, 1.0),
-        "Power BI": (["power bi", "powerbi", "dax"], 5, 1.0),
-        "Power Query": (["power query", "m language"], 3, 1.0),
-        "Advanced Excel": (["advanced excel", "pivot table", "xlookup", "vba", "macros"], 4, 1.0),
-        "Python": (["python", "pandas"], 4, .85),
-        "Machine Learning": (["machine learning", "scikit-learn", "classification", "regression model"], 3, .65),
-        "ETL": (["etl", "data pipeline", "data ingestion", "data transformation"], 4, .8),
-        "Data Modeling": (["data model", "dimensional model", "star schema", "data warehouse"], 4, .9),
-        "WFM": (["wfm", "workforce management", "erlang", "shrinkage", "occupancy"], 5, 1.0),
-        "SLA / AHT": (["service level", "sla", "aht", "average handling time"], 4, 1.0),
-        "Forecasting": (["forecasting", "forecast", "capacity planning"], 3, .85),
-        "Reporting & KPIs": (["reporting", "dashboard", "kpi", "business insights", "data analysis", "analytics"], 5, 1.0),
-        "Operations Analytics": (["operations analytics", "operational analysis", "process excellence", "root cause"], 4, .9),
-        "Stakeholder Management": (["stakeholder", "cross-functional", "presentation", "communication"], 3, .8),
-        "Statistics": (["statistics", "hypothesis testing", "a/b test", "statistical analysis"], 3, .7),
-        "Tableau": (["tableau"], 3, 0.0),
-        "Looker": (["looker", "lookml"], 3, 0.0),
-        "Cloud": (["aws", "azure", "gcp", "cloud platform"], 4, 0.0),
-        "Snowflake": (["snowflake"], 4, 0.0),
-        "Databricks / Spark": (["databricks", "pyspark", "apache spark"], 4, 0.0),
-        "dbt": (["dbt", "data build tool"], 3, 0.0),
-        "Airflow": (["airflow", "orchestration"], 3, 0.0),
-        "R": ([" r programming", " r language", "rstudio"], 2, 0.0),
-        "SAS": (["sas programming", " sas "], 2, 0.0),
-        "Git": (["git", "github", "version control"], 2, 0.0),
-        "Agile / Jira": (["agile", "scrum", "jira"], 2, .4),
-    }
-    detected: list[tuple[str, int, float, list[str]]] = []
-    for label, (terms, weight, evidence) in taxonomy.items():
-        hits = [term.strip() for term in terms if term in f" {context} "]
-        if hits:
-            detected.append((label, weight, evidence, hits))
+    """Backward-compatible, truth-preserving JD analysis used by the older ATS panel."""
+    try:
+        return analyze_job(payload.job_title, payload.company, payload.job_description)
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
 
-    total_weight = sum(item[1] for item in detected)
-    earned_weight = sum(weight * evidence for _, weight, evidence, _ in detected)
-    skill_coverage = round(100 * earned_weight / total_weight) if total_weight else 35
-    matched = [label for label, _, evidence, _ in detected if evidence >= .65]
-    partial = [label for label, _, evidence, _ in detected if 0 < evidence < .65]
-    missing = [label for label, _, evidence, _ in detected if evidence == 0]
 
-    preferred_roles = ["data analyst", "business intelligence", "bi analyst", "operations analyst",
-                       "reporting analyst", "mis analyst", "customer insights", "revenue analyst",
-                       "data operations", "process excellence", "wfm analyst", "workforce management"]
-    broader_roles = ["analyst", "analytics", "reporting", "operations", "data"]
-    call_center_terms = ["call center", "call centre", "contact center", "contact centre", "voice process",
-                         "chat process", "bpo", "bpo process", "telecaller", "telecalling", "customer support executive",
-                         "customer service executive", "process associate"]
-    excluded_role = next((term for term in call_center_terms if term in context), None)
-    if any(term in context[:1200] for term in preferred_roles):
-        role_alignment = 95
-    elif any(term in context[:1200] for term in broader_roles):
-        role_alignment = 70
-    else:
-        role_alignment = 35
-    if excluded_role:
-        role_alignment = 0
+@app.post("/api/resume/analyze")
+def resume_analyze(payload: ATSRequest):
+    """Analyze a JD against the supplied resume without inventing missing evidence."""
+    try:
+        result = analyze_job(payload.job_title, payload.company, payload.job_description)
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+    result["source_url"] = payload.source_url
+    result["downloads"] = {"docx": "/api/resume/download", "pdf": "/api/resume/download"}
+    return result
 
-    number_words = {"one": "1", "two": "2", "three": "3", "four": "4", "five": "5",
-                    "six": "6", "seven": "7", "eight": "8", "nine": "9", "ten": "10"}
-    experience_text = context
-    for word, digit in number_words.items():
-        experience_text = re.sub(rf"\b{word}\b", digit, experience_text)
-    experience_values = [float(value) for value in re.findall(
-        r"(\d+(?:\.\d+)?)\s*(?:\+|to|-)?\s*(?:\d+(?:\.\d+)?)?\s*(?:years|yrs)\b", experience_text
-    )]
-    required_years = max(experience_values) if experience_values else None
-    if required_years is None:
-        experience_alignment = 70
-    elif required_years <= 2.5:
-        experience_alignment = 100
-    elif required_years <= 3:
-        experience_alignment = 85
-    elif required_years <= 4:
-        experience_alignment = 60
-    elif required_years <= 6:
-        experience_alignment = 30
-    else:
-        experience_alignment = 10
 
-    score = round(skill_coverage * .65 + role_alignment * .25 + experience_alignment * .10)
-    if excluded_role:
-        score = min(score, 15)
-    score = max(1, min(score, 96))
-
-    bullet_library = {
-        "SQL": "Used advanced SQL—including CTEs and window functions—to analyze operational data and produce decision-ready reporting; add a verified scale and outcome.",
-        "Power BI": "Built Power BI models and DAX measures around clearly defined KPIs; insert a truthful adoption, latency or decision-impact result.",
-        "Advanced Excel": "Automated repeatable Excel analysis with Power Query and advanced formulas; add the verified manual-effort reduction.",
-        "Python": "Used Python and Pandas for reproducible data preparation, validation and analysis; quantify only an outcome you can evidence.",
-        "ETL": "Created controlled ETL steps with reconciliation and quality checks so reporting inputs remained traceable; add a verified refresh or error-rate result.",
-        "Data Modeling": "Structured reporting data using dimensional-modeling principles to simplify KPI analysis and filter behavior; add a defensible business result.",
-        "WFM": "Analyzed workload, AHT, shrinkage, occupancy and service-level drivers to support workforce decisions; add a verified planning impact.",
-        "SLA / AHT": "Tracked SLA and AHT with documented definitions and interval-level root-cause analysis; add a measured improvement only if supported by records.",
-        "Forecasting": "Compared forecast demand with actual outcomes and investigated variance drivers; insert a verified accuracy or planning result.",
-        "Reporting & KPIs": "Converted operational data into governed KPI reporting and concise stakeholder insights; add the decision and verified outcome.",
-        "Operations Analytics": "Investigated operational exceptions and root causes, then translated findings into an actionable process recommendation; add a verified result.",
-        "Stakeholder Management": "Presented decision-focused analysis to cross-functional stakeholders, documenting assumptions, limitations and next actions.",
-    }
-    bullets = [bullet_library[label] for label in matched if label in bullet_library][:4]
-    if not bullets:
-        bullets = ["Use a profile summary focused on transferable analytics, operations and reporting evidence; do not add tools or results that cannot be verified."]
-
-    fingerprint = hashlib.sha256(f"{payload.job_title}|{jd}".encode()).hexdigest()[:10]
-    return {
-        "analysis_id": fingerprint, "scoring_version": "profile-jd-v3", "score": score,
-        "breakdown": {"skill_coverage": skill_coverage, "role_alignment": role_alignment,
-                      "experience_alignment": experience_alignment},
-        "formula": "65% detected skill coverage + 25% target-role alignment + 10% experience alignment",
-        "candidate_baseline": {"experience_years": 2.5,
-                               "skills_source": "Saved profile and skills matrix; no unstated skill receives full credit"},
-        "matched": matched, "partial": partial, "missing": missing,
-        "required_detected": [label for label, *_ in detected],
-        "detected_evidence": {label: hits for label, _, _, hits in detected},
-        "tailored_bullets": bullets,
-        "learning_priorities": missing[:4],
-        "eligibility_warning": f"This description matches your excluded call-centre/BPO category ('{excluded_role}')." if excluded_role else None,
-        "required_years": required_years,
-        "disclaimer": "This is a JD-specific, explainable profile comparison—not an employer ATS score. It uses only Sam's stated skills; every result or metric must be replaced with verified evidence."
-    }
+@app.post("/api/resume/download")
+def resume_download(payload: ResumeDownloadRequest):
+    """Build an ATS-safe single-column resume as DOCX or PDF from verified resume evidence."""
+    try:
+        if payload.file_format == "pdf":
+            content, _ = build_pdf(payload.job_title, payload.company, payload.job_description)
+            media_type = "application/pdf"
+        else:
+            content, _ = build_docx(payload.job_title, payload.company, payload.job_description)
+            media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+    filename = safe_filename(payload.job_title, payload.company, payload.file_format)
+    return StreamingResponse(
+        io.BytesIO(content), media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"',
+                 "Cache-Control": "no-store"},
+    )
 
 
 @app.get("/api/export/jobs.csv")

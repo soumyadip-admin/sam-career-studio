@@ -13,7 +13,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
   <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
-  <link rel="stylesheet" href="/static/styles.css?v=2026.11.20-pwa.5">
+  <link rel="stylesheet" href="/static/styles.css?v=2026.11.20-pwa.6">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -29,6 +29,7 @@
       <a class="active" href="#overview">Overview</a>
       <a href="#radar">Live radar</a>
       <a href="#pipeline">Pipeline</a>
+      <a href="#resume">Resume</a>
       <a href="#projects">Projects</a>
       <a href="#roadmap">Roadmap</a>
       <a href="#skills">Skills</a>
@@ -55,7 +56,7 @@
           <p class="hero-lede">A source-aware command center for <strong>Soumyadip Sarkar</strong>—live job discovery, application tracking, project execution and interview readiness in one honest operating system.</p>
           <div class="hero-actions">
             <a class="btn btn-primary" href="#radar"><span>Explore live jobs</span><b>↗</b></a>
-            <a class="btn btn-secondary" href="#ats">Match a resume</a>
+            <a class="btn btn-secondary" href="#resume">Tailor a resume</a>
           </div>
           <div class="trust-row">
             <span><i class="ok-icon">✓</i> Public-source provenance</span>
@@ -153,9 +154,58 @@
       <p class="drag-note">Use “Track job” on a live card to add it to Interested. Application stages never change automatically without your action.</p>
     </section>
 
+    <section id="resume" class="content-section section-wrap resume-studio">
+      <div class="section-heading">
+        <div><div class="section-index">03 / TAILOR</div><h2>Truthful resume <em>studio</em></h2><p>Paste a real job description to check supported keywords, expose genuine gaps, and build an ATS-safe tailored resume without inventing experience.</p></div>
+        <div class="resume-source-badge"><span>BASE RESUME</span><b>Verified PDF · date corrected</b><small>Startek: Dec 2025 – Sep 2026</small></div>
+      </div>
+      <div class="resume-grid">
+        <form id="resumeForm" class="resume-input-panel glass">
+          <div class="panel-title"><div><span>JOB INPUT</span><h3>Analyze one real vacancy</h3></div><small>Nothing is submitted to an employer</small></div>
+          <div class="form-grid">
+            <label>Target job title<input id="resumeTitle" required maxlength="200" placeholder="e.g. Data Analyst"></label>
+            <label>Company, if supplied<input id="resumeCompany" maxlength="200" placeholder="e.g. Acme Analytics"></label>
+          </div>
+          <label>Source URL, optional<input id="resumeSourceUrl" type="url" maxlength="2000" placeholder="https://company.com/job/..."></label>
+          <label>Complete job description<textarea id="resumeDescription" required rows="16" maxlength="30000" placeholder="Paste responsibilities, required skills, experience and education from the real posting…"></textarea></label>
+          <div class="resume-rules">
+            <span><i>✓</i> Uses only evidence in your supplied PDF</span>
+            <span><i>✓</i> Reports missing skills instead of adding them</span>
+            <span><i>✓</i> Single-column DOCX and PDF downloads</span>
+          </div>
+          <button class="btn btn-primary full" id="buildResume" type="submit">Analyze &amp; build tailored resume</button>
+        </form>
+
+        <div class="resume-result-panel glass" aria-live="polite">
+          <div id="resumeEmpty" class="resume-empty"><span>ATS / JD</span><h3>Your evidence-first result appears here</h3><p>The engine compares the posting with the supplied resume, prioritizes supported wording and keeps unsupported requirements visible as gaps.</p></div>
+          <div id="resumeResult" hidden>
+            <div class="resume-result-head"><div><span id="resumeRecommendation">ANALYSIS</span><h3 id="resumeResultTitle">Tailored result</h3><small id="resumeAnalysisId"></small></div><div class="resume-score"><strong id="resumeScore">—</strong><small>readiness diagnostic</small></div></div>
+            <p class="resume-disclaimer" id="resumeDisclaimer"></p>
+            <div class="resume-score-grid">
+              <article><span>SUPPORTED JD COVERAGE</span><b id="resumeSkillScore">—</b></article>
+              <article><span>ORIGINAL VISIBILITY</span><b id="resumeOriginalScore">—</b></article>
+              <article><span>TAILORED VISIBILITY</span><b id="resumeTailoredScore">—</b></article>
+              <article><span>EXPERIENCE ALIGNMENT</span><b id="resumeExperienceScore">—</b></article>
+            </div>
+            <div id="resumeWarnings"></div>
+            <h4>MATCHED WITH RESUME EVIDENCE</h4><div class="chip-list" id="resumeMatched"></div>
+            <h4>PARTIAL / TRANSFERABLE EVIDENCE</h4><div class="chip-list" id="resumePartial"></div>
+            <h4>REAL GAPS — NOT ADDED TO RESUME</h4><div class="chip-list" id="resumeMissing"></div>
+            <details class="resume-details"><summary>View requirement evidence and ATS checks</summary><div id="resumeEvidence"></div></details>
+            <div class="resume-preview"><span>TAILORED SUMMARY PREVIEW</span><p id="resumeSummary"></p></div>
+            <div class="resume-downloads">
+              <button class="btn btn-primary" id="downloadResumeDocx" type="button">Download ATS DOCX</button>
+              <button class="btn btn-secondary" id="downloadResumePdf" type="button">Download PDF</button>
+            </div>
+            <p class="resume-download-note">Download, review every statement, and make any final factual correction before applying. No ATS outcome or interview can be guaranteed.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section id="projects" class="content-section section-wrap">
       <div class="section-heading">
-        <div><div class="section-index">03 / BUILD</div><h2>Enterprise project <em>lab</em></h2><p>Sixteen interview-ready blueprints from fundamentals to production architecture.</p></div>
+        <div><div class="section-index">04 / BUILD</div><h2>Enterprise project <em>lab</em></h2><p>Sixteen interview-ready blueprints from fundamentals to production architecture.</p></div>
         <div class="project-legend"><span><i class="dot basic"></i> Foundation</span><span><i class="dot intermediate"></i> Intermediate</span><span><i class="dot advanced"></i> Advanced</span></div>
       </div>
       <div class="project-grid" id="projectGrid"><div class="project-card skeleton-card"></div><div class="project-card skeleton-card"></div></div>
@@ -168,7 +218,7 @@
 
     <section id="roadmap" class="content-section section-wrap">
       <div class="section-heading">
-        <div><div class="section-index">04 / TRANSITION</div><h2>Data Analyst <em>roadmap</em></h2><p>A complete domain-change path from BPO operations experience to evidence-backed analytics work.</p></div>
+        <div><div class="section-index">05 / TRANSITION</div><h2>Data Analyst <em>roadmap</em></h2><p>A complete domain-change path from BPO operations experience to evidence-backed analytics work.</p></div>
         <div class="roadmap-progress"><div><strong id="roadmapPercent">0%</strong><small id="roadmapCount">0 of 0 complete</small></div><span><i id="roadmapBar"></i></span></div>
       </div>
       <div class="roadmap-priority glass"><b>YOUR TRANSFERABLE ADVANTAGE</b><p>Use your operations, SLA, AHT, WFM and stakeholder experience as business context—but prove the domain change with SQL, Power BI, Excel, Python and portfolio evidence. Do not present BPO process work as the target role.</p></div>
@@ -178,7 +228,7 @@
 
     <section id="skills" class="content-section section-wrap">
       <div class="section-heading">
-        <div><div class="section-index">05 / SHARPEN</div><h2>Skills mastery <em>matrix</em></h2><p>Adjust self-assessments as evidence grows. Changes save immediately.</p></div>
+        <div><div class="section-index">06 / SHARPEN</div><h2>Skills mastery <em>matrix</em></h2><p>Adjust self-assessments as evidence grows. Changes save immediately.</p></div>
         <div class="readiness-ring"><span id="readinessValue">—</span><small>readiness</small></div>
       </div>
       <div class="skill-grid" id="skillGrid"></div>
@@ -186,7 +236,7 @@
 
     <section id="interview" class="content-section section-wrap split-section">
       <div class="interview-panel glass">
-        <div class="section-index">06 / PRACTICE</div>
+        <div class="section-index">07 / PRACTICE</div>
         <h2>Technical interview <em>simulator</em></h2>
         <div class="sim-controls"><select id="interviewCategory"><option value="">All domains</option><option>SQL</option><option>Power BI</option><option>WFM</option><option>Python</option><option>Analytics</option><option>Architecture</option><option>Behavioral</option></select><select id="interviewDifficulty"><option value="">All levels</option><option>Intermediate</option><option>Advanced</option></select></div>
         <div class="question-card" id="questionCard">
@@ -198,7 +248,7 @@
       </div>
 
       <div id="ats" class="ats-panel glass">
-        <div class="section-index">07 / TAILOR</div>
+        <div class="section-index">08 / QUICK CHECK</div>
         <h2>ATS resume <em>matcher</em></h2>
         <p>Paste a real job description. The score is transparent keyword coverage—not a fake recruiter prediction.</p>
         <label>Target job title<input id="atsTitle" placeholder="e.g. Workforce Management Analyst"></label>
@@ -211,7 +261,7 @@
 
   <footer>
     <div class="brand"><span class="brand-mark"><span></span></span><span><b>SAM</b><small>CAREER STUDIO</small></span></div>
-    <p>Built as a source-aware career operating system. Verify every listing before applying. <span id="buildLabel">PWA build 2026.11.20-pwa.5</span></p>
+    <p>Built as a source-aware career operating system. Verify every listing before applying. <span id="buildLabel">PWA build 2026.11.20-pwa.6</span></p>
     <div><span id="footerStatus"><i></i> SYSTEM ONLINE</span><a href="mailto:soumyadipsarkar2106@gmail.com">CONTACT</a></div>
   </footer>
 
@@ -260,8 +310,8 @@
 
   <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
-  <script src="/static/three.min.js?v=2026.11.20-pwa.5"></script>
-  <script src="/static/scene.js?v=2026.11.20-pwa.5"></script>
-  <script src="/static/app.js?v=2026.11.20-pwa.5"></script>
+  <script src="/static/three.min.js?v=2026.11.20-pwa.6"></script>
+  <script src="/static/scene.js?v=2026.11.20-pwa.6"></script>
+  <script src="/static/app.js?v=2026.11.20-pwa.6"></script>
 </body>
 </html>

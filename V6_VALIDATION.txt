@@ -1,0 +1,15 @@
+SAM Career Studio PWA v6 validation
+Build: 2026.11.20-pwa.6
+
+- 12 automated resume/UI/scanner tests: PASS
+- Python compilation: PASS
+- Browser JavaScript syntax: PASS
+- Manifest JSON: PASS
+- POST /api/resume/analyze end-to-end test: PASS
+- DOCX download endpoint and OOXML integrity: PASS
+- PDF download endpoint and PDF integrity: PASS
+- 25 real-job trials: 25 DOCX + 25 PDF generated
+- Corrected Startek dates in all trial outputs: PASS
+- Unsupported hard-skill leakage assertions: PASS
+
+No secret values, uploaded resume PDF, runtime database, or generated trial resumes are included in this deployment package.

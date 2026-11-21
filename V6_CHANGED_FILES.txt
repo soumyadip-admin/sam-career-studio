@@ -1,0 +1,17 @@
+Added:
+- resume_engine.py
+- tests/test_resume_engine.py
+- tests/test_resume_ui_contract.py
+- scripts/run_resume_trial.py
+- RELEASE_NOTES_PWA_V6.md
+- UPDATE_PWA_V6.md
+
+Changed:
+- server.py
+- requirements.txt
+- templates/index.html
+- static/app.js
+- static/styles.css
+- static/sw.js
+- static/manifest.webmanifest
+- README.md

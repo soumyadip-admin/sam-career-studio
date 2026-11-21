@@ -52,9 +52,9 @@
       "icons": [{"src": "/static/icons/icon-192.png", "sizes": "192x192"}]
     },
     {
-      "name": "ATS matcher",
-      "short_name": "ATS",
-      "url": "/#ats",
+      "name": "Tailored resume studio",
+      "short_name": "Resume",
+      "url": "/#resume",
       "icons": [{"src": "/static/icons/icon-192.png", "sizes": "192x192"}]
     }
   ]
